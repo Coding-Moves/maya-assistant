@@ -47,7 +47,7 @@ Want the technical details? See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Quick start
 
-You'll need **Node.js** (22+ recommended for the current SQLite package; Node 20 support needs an older pin), a **Gemini API key** from [Google AI Studio](https://aistudio.google.com/), and your **phone** with WhatsApp.
+You'll need **Node.js 22 or newer** (we develop on Node 24), a **Gemini API key** from [Google AI Studio](https://aistudio.google.com/), and your **phone** with WhatsApp.
 
 ```bash
 git clone https://github.com/Muawiya-contact/maya-assistant.git

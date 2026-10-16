@@ -31,7 +31,7 @@ Steps marked 🙋 **Manual** are things a human has to do: scan a QR code, copy 
 ## Phase 1 — Core
 
 ### Step 0 — Prep 🙋 Manual
-- [ ] Install a supported Node.js version (`node -v` to check). The current `better-sqlite3` 13.x requires Node.js 22+; decide whether to raise Maya's minimum to 22 or pin an older SQLite version before Step 1.
+- [ ] Install Node.js 22 or newer (`node -v` to check); use Node 24 for development.
 - [ ] Get a **Gemini API key** from Google AI Studio. If it's a paid key, set a **budget alert** in Google Cloud.
 - [ ] Make sure the repo has `README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `AGENTS.md`, `.env.example`.
 - [ ] Have your phone ready (you'll scan a QR in Step 3).
@@ -47,9 +47,9 @@ Steps marked 🙋 **Manual** are things a human has to do: scan a QR code, copy 
 Read AGENTS.md, ARCHITECTURE.md and ROADMAP.md first.
 
 Do Step 1 (Project scaffold) only.
-- Create package.json (type: module, engines node >=20), tsconfig.json (strict, NodeNext), eslint.config.js + prettier, .gitignore (node_modules, data/, auth_info/, .env, *.db*), LICENSE (MIT).
+- Create package.json (type: module, engines node >=22), tsconfig.json (strict, NodeNext), eslint.config.js + prettier, .gitignore (node_modules, data/, auth_info/, .env, *.db*), LICENSE (MIT).
 - Scripts: dev (tsx watch src/index.ts), start (tsx src/index.ts), list-groups, backup-db, typecheck (tsc --noEmit), lint.
-- Install: `baileys` (pin the exact v7 release candidate selected after checking npm; no stable v7 release yet), @google/genai, a better-sqlite3 version compatible with the chosen Node minimum, node-cron, zod, pino, qrcode-terminal, dotenv; dev: typescript (a version supported by typescript-eslint), tsx, @types/node (matching the chosen Node major), @types/better-sqlite3, @types/qrcode-terminal, eslint, @eslint/js, prettier, typescript-eslint.
+- Install exact versions (no version ranges): `baileys@7.0.0-rc14`, @google/genai, better-sqlite3 13.x, node-cron, zod, pino 9.x, qrcode-terminal, dotenv; dev: typescript 6.0.3, tsx, @types/node (Node 22 types), @types/better-sqlite3, @types/qrcode-terminal, eslint, @eslint/js, prettier, typescript-eslint.
 - src/config/env.ts: load .env, validate every variable in .env.example with zod, export a typed config. Fail fast with a clear message.
 - src/utils/logger.ts (pino), src/utils/time.ts (timezone helpers).
 - src/index.ts: load config, log "Maya starting", nothing else yet.
@@ -69,8 +69,8 @@ Do not build anything from later steps. Commit when done. Do NOT open a PR.
 Read AGENTS.md and ARCHITECTURE.md. Do Step 2 (Database) only.
 - src/db/client.ts: better-sqlite3 at DATABASE_PATH, create the folder if missing, WAL mode, foreign keys on.
 - src/db/schema.sql exactly as in ARCHITECTURE.md; src/db/migrate.ts applies it on start.
-- src/db/repos/messages.ts: insertMessage (ignore duplicates via UNIQUE), getUnprocessed(limit), incrementExtractAttempts(ids), markProcessed(ids), recentMessages(chatIds, limit).
-- src/db/repos/tasks.ts: createTask, updateTask, cancelTask, markDone, openTasks, tasksDueBetween(startUtc, endUtc), markReminded(id, 'morning'|'evening').
+- src/db/repos/messages.ts: insertMessage (ignore duplicates via UNIQUE), getUnprocessed(limit), incrementExtractAttempts(ids), quarantineFailedBatch(ids), pendingFailureBatches(), markFailureBatchNotified(id), markProcessed(ids), recentMessages(chatIds, limit).
+- src/db/repos/tasks.ts: createTask, updateTask, cancelTask (including `last_msg_id`), markDone, openTasks, tasksDueBetween(startUtc, endUtc), markReminded(id, 'morning'|'evening').
 - Store times as ISO UTC strings.
 - Call migrate from src/index.ts.
 Commit when done. Do NOT open a PR.
@@ -162,9 +162,9 @@ Commit when done. Do NOT open a PR.
 ```
 Read AGENTS.md and the "AI extraction contract" in ARCHITECTURE.md. Check the current @google/genai docs for structured JSON output before coding. Do Step 7 only.
 - src/ai/gemini.ts: client with GEMINI_API_KEY and GEMINI_MODEL; generateJson(prompt, zodSchema) and generateText(prompt) via `ai.models.generateContent({ model, contents, config })`. For structured JSON, use `config.responseMimeType: 'application/json'` with `config.responseJsonSchema` (a supported JSON Schema converted from zod), parse `response.text`, then validate with zod. Retry transient `ApiError.status === 429` or 5xx with exponential backoff and jitter (max 3); do not retry permanent auth/config errors.
-- src/ai/schemas.ts: zod schema for { actions: [...] } exactly as in ARCHITECTURE.md.
+- src/ai/schemas.ts: zod schema for { actions: [...] } exactly as in ARCHITECTURE.md, including `source_msg_ref` on every action.
 - src/ai/prompts.ts: extraction prompt. Include current time, TIMEZONE, open tasks, and the message batch. Rules: resolve relative dates from each message's own time; no date → null, never guess; ignore chatter; prefer update/cancel over creating duplicates. Output due_at in UTC.
-- src/features/extract.ts: take up to EXTRACT_BATCH_SIZE unprocessed messages, call AI, validate every action and its referenced message/task IDs, apply actions in one DB transaction, mark messages processed. On validation failure: keep unprocessed and increment each message's `extract_attempts`; after 3 failures mark the affected messages processed and warn with their IDs.
+- src/features/extract.ts: take up to EXTRACT_BATCH_SIZE unprocessed messages, call AI, validate every action and its referenced message/task IDs, apply actions in one DB transaction, mark messages processed. On validation/extraction failure: keep messages pending and increment each message's `extract_attempts`; after 3 failures quarantine them (`processed = -1`) in one failure batch. Notify the owner once per failed batch via `sendToOwner()` (batch ID and message IDs, no message text); record successful notification and retry pending ones.
 - Run it every EXTRACT_INTERVAL_MIN minutes (simple interval for now; Step 9 moves it to the scheduler). Skip if no unprocessed messages (no API call).
 Commit when done. Do NOT open a PR.
 ```
@@ -236,6 +236,7 @@ Then run npm run typecheck and npm run lint ONCE and fix all issues. Commit. Do 
 2. **Process manager:** add a `pm2` ecosystem file and a `Dockerfile` with volumes for `data/` and `auth_info/`.
 3. **Hosting guide:** document running on an old laptop, an old Android phone (Termux), or a free cloud VM. Hosts with a **persistent disk** are required, because SQLite and the session must survive restarts.
 4. **Daily DB backup** cron job.
+5. **Auth storage and privacy review:** reassess `useMultiFileAuthState` for long-running hosting and review the handling, retention, and Gemini transmission of group messages.
 
 ## Phase 3 — Media (outline)
 Download image and PDF announcements (allowlisted groups only, with a size limit), send them to Gemini vision, and save the extracted text as a message, so the normal extraction picks it up.

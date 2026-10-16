@@ -15,8 +15,8 @@ Instructions for AI coding agents (Codex, Claude Code, Cursor, etc.) working on 
 - Never hardcode a phone number, group ID, timezone, name, or API key. Everything comes from `src/config/env.ts`.
 
 ## Tech rules
-- Node 20+, ESM (`"type": "module"`), TypeScript strict, run with `tsx`.
-- Baileys v7: pin the exact release candidate version selected for this project. Check https://baileys.wiki before writing socket code; the API changes between versions.
+- Node 22+ (develop on Node 24), ESM (`"type": "module"`), TypeScript strict, run with `tsx`.
+- Baileys v7: use the `baileys` package pinned exactly to `7.0.0-rc14`. Check https://baileys.wiki before writing socket code; the API changes between versions.
   - Use the `connection.update` `qr` field + `qrcode-terminal`. Do not use `printQRInTerminal`.
   - JIDs may be LID (`@lid`) or PN (`@s.whatsapp.net`). Normalize with `jidNormalizedUser`, check both known forms for the owner, and resolve PN ↔ LID with Baileys' mapping store when needed. Normalization alone does not equate PN and LID. If the owner cannot be verified, ignore the message and do not send.
   - `markOnlineOnConnect: false`, `syncFullHistory: false`.
