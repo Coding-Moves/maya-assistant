@@ -60,8 +60,10 @@ export async function connectToWhatsApp(): Promise<void> {
 
   try {
     releaseAuthSessionLock ??= acquireAuthSessionLock();
+    const { attachWhatsAppRouter } = await import('./router.js');
     const { socket: nextSocket, flushCredentials } = await createWhatsAppSocket();
     socket = nextSocket;
+    const detachRouter = attachWhatsAppRouter(nextSocket);
 
     nextSocket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
       if (socket !== nextSocket) return;
@@ -83,6 +85,7 @@ export async function connectToWhatsApp(): Promise<void> {
       }
 
       if (connection === 'close') {
+        detachRouter();
         socket = null;
         clearOwnerIdentity();
         const code = disconnectCode(lastDisconnect?.error);
