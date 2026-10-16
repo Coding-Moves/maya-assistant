@@ -153,6 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, due_at);
 ```
 
 Store times in **UTC**, and convert to `TIMEZONE` only when you show them or schedule something.
+Normalize stored timestamp inputs to the fixed-millisecond ISO UTC form (`YYYY-MM-DDTHH:mm:ss.sssZ`), so SQLite text ordering works at interval boundaries.
 Application updates must also write `updated_at` in the same ISO UTC format. Reset both reminder flags when a task's due date changes. Mark a reminder only after `sendToOwner()` reports a successful send.
 Reminder sends and database updates cannot be one atomic operation; a crash between them may cause a rare duplicate reminder. Exactly-once reminder delivery is not required.
 
