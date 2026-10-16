@@ -2,6 +2,8 @@
 
 **Your personal WhatsApp assistant that never misses a deadline.**
 
+**Development status:** Step 1 is a project scaffold. The WhatsApp, extraction, reminder, and Q&A features below are planned for later steps in [ROADMAP.md](ROADMAP.md); they do not run yet.
+
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
 Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose, picks out the things that matter, and reminds you before it's too late. You can also just ask her:
@@ -62,15 +64,15 @@ Open `.env` and add your Gemini key. Then:
 npm run dev
 ```
 
-A QR code appears. On your phone, open **WhatsApp → Settings → Linked devices → Link a device** and scan it.
+At Step 1, this validates your config and prints `Maya starting`. It does not connect to WhatsApp or call Gemini yet.
 
-Next, find your group IDs:
+Starting in Step 3, a QR code will appear. On your phone, open **WhatsApp → Settings → Linked devices → Link a device** and scan it. Step 4 adds the command to find your group IDs:
 
 ```bash
 npm run list-groups
 ```
 
-Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env`, and restart with `npm run dev`. That's it, Maya is live. 🎉
+Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart with `npm run dev`. Maya's extraction, commands, and reminders arrive in later Phase 1 steps.
 
 ## Talking to Maya
 
