@@ -1,0 +1,95 @@
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, type WASocket } from 'baileys';
+import qrcode from 'qrcode-terminal';
+import { config } from '../../config/env.js';
+import { logger } from '../../utils/logger.js';
+import { clearOwnerIdentity, resolveOwnerIdentity, setOwnerIdentity } from './identity.js';
+
+const baileysLogger = logger.child({ module: 'baileys' }, { level: 'warn' });
+const maxReconnectDelayMs = 5 * 60 * 1000;
+
+let socket: WASocket | null = null;
+let reconnectTimer: NodeJS.Timeout | null = null;
+let reconnectDelayMs = 1000;
+let connecting = false;
+
+function disconnectCode(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null || !('output' in error)) return undefined;
+  const output = error.output;
+  if (typeof output !== 'object' || output === null || !('statusCode' in output)) return undefined;
+  return typeof output.statusCode === 'number' ? output.statusCode : undefined;
+}
+
+function scheduleReconnect(afterSave: Promise<void> = Promise.resolve()): void {
+  if (reconnectTimer) return;
+  const delayMs = reconnectDelayMs;
+  reconnectDelayMs = Math.min(reconnectDelayMs * 2, maxReconnectDelayMs);
+  logger.warn({ delayMs }, 'WhatsApp disconnected; reconnecting');
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void afterSave.then(connectToWhatsApp);
+  }, delayMs);
+}
+
+export async function connectToWhatsApp(): Promise<void> {
+  if (connecting || socket || reconnectTimer) return;
+  connecting = true;
+
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(config.AUTH_DIR);
+    const nextSocket = makeWASocket({
+      auth: state,
+      logger: baileysLogger,
+      markOnlineOnConnect: false,
+      syncFullHistory: false,
+    });
+    socket = nextSocket;
+
+    let pendingSave = Promise.resolve();
+    nextSocket.ev.on('creds.update', () => {
+      pendingSave = pendingSave.then(saveCreds).catch((error: unknown) => {
+        logger.error({ err: error }, 'Could not save WhatsApp credentials');
+      });
+    });
+
+    nextSocket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+      if (socket !== nextSocket) return;
+      if (qr) qrcode.generate(qr, { small: true });
+
+      if (connection === 'open') {
+        reconnectDelayMs = 1000;
+        const name = nextSocket.user?.name ?? nextSocket.user?.notify ?? 'WhatsApp account';
+        logger.info(`Connected as ${name}`);
+        void resolveOwnerIdentity(nextSocket).then((identity) => {
+          if (socket !== nextSocket) return;
+          setOwnerIdentity(identity);
+          if (!identity) logger.warn('Owner identity is unavailable; owner chat will be ignored');
+        }).catch((error: unknown) => {
+          if (socket !== nextSocket) return;
+          clearOwnerIdentity();
+          logger.error({ err: error }, 'Could not resolve owner identity');
+        });
+      }
+
+      if (connection === 'close') {
+        socket = null;
+        clearOwnerIdentity();
+        const code = disconnectCode(lastDisconnect?.error);
+        if (code === DisconnectReason.loggedOut) {
+          logger.error(`WhatsApp logged out. Delete ${config.AUTH_DIR} and rescan the QR code.`);
+          process.exit(1);
+        }
+        if (code === DisconnectReason.restartRequired) {
+          logger.info('WhatsApp requested a restart after pairing');
+        }
+        scheduleReconnect(pendingSave);
+      }
+    });
+  } catch (error) {
+    socket = null;
+    clearOwnerIdentity();
+    logger.error({ err: error }, 'Could not start WhatsApp connection');
+    scheduleReconnect();
+  } finally {
+    connecting = false;
+  }
+}
