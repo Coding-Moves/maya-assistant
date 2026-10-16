@@ -165,15 +165,16 @@ export function tasksDueBetween(startUtc: string, endUtc: string): Task[] {
     .all(start, end);
 }
 
-export function markReminded(id: number, period: 'morning' | 'evening'): boolean {
+export function markReminded(id: number, period: 'morning' | 'evening', expectedDueAt: string): boolean {
   const column = period === 'morning' ? 'reminded_morning' : 'reminded_evening';
+  const dueAt = normalizeUtcIso(expectedDueAt);
   return (
     db
       .prepare(
         `UPDATE tasks SET ${column} = 1,
          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-         WHERE id = ? AND status = 'open' AND due_at IS NOT NULL AND ${column} = 0`,
+         WHERE id = ? AND status = 'open' AND due_at = ? AND ${column} = 0`,
       )
-      .run(checkedId(id)).changes === 1
+      .run(checkedId(id), dueAt).changes === 1
   );
 }

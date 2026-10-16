@@ -70,7 +70,7 @@ Read AGENTS.md and ARCHITECTURE.md. Do Step 2 (Database) only.
 - src/db/client.ts: better-sqlite3 at DATABASE_PATH, create the folder if missing, WAL mode, foreign keys on.
 - src/db/schema.sql exactly as in ARCHITECTURE.md; src/db/migrate.ts applies it on start.
 - src/db/repos/messages.ts: insertMessage (ignore duplicates via UNIQUE), getUnprocessed(limit), incrementExtractAttempts(ids), quarantineFailedBatch(ids), pendingFailureBatches(), markFailureBatchNotified(id), markProcessed(ids), recentMessages(chatIds, limit).
-- src/db/repos/tasks.ts: createTask, updateTask, cancelTask (including `last_msg_id`), markDone, openTasks, tasksDueBetween(startUtc, endUtc), markReminded(id, 'morning'|'evening').
+- src/db/repos/tasks.ts: createTask, updateTask, cancelTask (including `last_msg_id`), markDone, openTasks, tasksDueBetween(startUtc, endUtc), markReminded(id, 'morning'|'evening', expectedDueAt).
 - Store times as ISO UTC strings.
 - Call migrate from src/index.ts.
 Commit when done. Do NOT open a PR.
@@ -199,8 +199,8 @@ Commit when done. Do NOT open a PR.
 Read AGENTS.md. Do Step 9 only.
 - src/scheduler/jobs.ts: register digest and weekly jobs with node-cron, ALWAYS with { timezone: TIMEZONE }. Move the extraction interval from Step 7 into this scheduler without converting it to a cron expression (an arbitrary interval does not map to `*/N` across hour boundaries):
   - extraction every EXTRACT_INTERVAL_MIN via an interval, with overlapping runs prevented
-  - MORNING_DIGEST_CRON → features/digests.ts: open tasks due today (in TIMEZONE) not yet morning-reminded; send one message; mark reminded only after successful send.
-  - EVENING_DIGEST_CRON → tasks due tomorrow not yet evening-reminded; send; mark reminded only after successful send.
+  - MORNING_DIGEST_CRON → features/digests.ts: open tasks due today (in TIMEZONE) not yet morning-reminded; send one message; mark reminded only after successful send, passing the selected due date to `markReminded`.
+  - EVENING_DIGEST_CRON → tasks due tomorrow not yet evening-reminded; send; mark reminded only after successful send, passing the selected due date to `markReminded`.
   - WEEKLY_PLAN_CRON → features/weeklyPlan.ts: AI-written plan for the next 7 days from open tasks, ordered by urgency.
   - If there is nothing to send, send nothing.
 - Add a hidden command "debug run <morning|evening|weekly>" (owner only) to trigger jobs manually for testing.
