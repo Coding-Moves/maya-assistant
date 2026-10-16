@@ -7,7 +7,9 @@ process.env.OWNER_JID = '123@s.whatsapp.net';
 
 const { ownerInput } = await import('../src/channels/whatsapp/trigger.ts');
 
-test('separate mode accepts inbound owner text without a trigger', () => {
-  assert.equal(ownerInput('buy milk', false), 'buy milk');
-  assert.equal(ownerInput('buy milk', true), null);
+test('separate mode requires a trigger in an inbound owner message', () => {
+  assert.equal(ownerInput('maya help', false), 'help');
+  assert.equal(ownerInput('Hy @maya', false), 'Hy');
+  assert.equal(ownerInput('buy milk', false), null);
+  assert.equal(ownerInput('maya help', true), null);
 });

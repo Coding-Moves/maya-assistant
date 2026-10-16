@@ -6,7 +6,10 @@ import { getOwnerChatJid } from './identity.js';
 const sentAt: { at: number }[] = [];
 const oneHourMs = 60 * 60 * 1000;
 
-export async function sendToOwner(text: string): Promise<boolean> {
+export async function sendToOwner(
+  text: string,
+  kind: 'reply' | 'progress' = 'reply',
+): Promise<boolean> {
   const sock = getConnectedSocket();
   const ownerJid = getOwnerChatJid();
   if (!sock || !ownerJid) {
@@ -18,7 +21,8 @@ export async function sendToOwner(text: string): Promise<boolean> {
 
   const now = Date.now();
   while (sentAt.length > 0 && sentAt[0]!.at <= now - oneHourMs) sentAt.shift();
-  if (sentAt.length >= config.MAX_REPLIES_PER_HOUR) {
+  const slotsNeeded = kind === 'progress' ? 2 : 1;
+  if (sentAt.length + slotsNeeded > config.MAX_REPLIES_PER_HOUR) {
     logger.warn('Owner message dropped: hourly rate limit reached');
     return false;
   }

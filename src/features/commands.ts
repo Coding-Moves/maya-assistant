@@ -3,20 +3,24 @@ import { markDone, openTasks } from '../db/repos/tasks.js';
 import { formatInTimezone } from '../utils/time.js';
 import { ask } from './ask.js';
 
-export async function handleOwnerText(text: string): Promise<void> {
+export async function handleOwnerText(
+  text: string,
+  send: typeof sendToOwner = sendToOwner,
+  answer: typeof ask = ask,
+): Promise<void> {
   const input = text.trim();
   if (!input) return;
   const lower = input.toLowerCase();
 
-  if (lower === 'help') {
-    await sendToOwner(
-      'Commands: help, tasks, done <id>. Ask me a question for anything else.',
+  if (lower === 'help' || lower === '?') {
+    await send(
+      'Commands: help or ?, task/tasks/list, done/complete <id>. Ask me a question for anything else.',
     );
     return;
   }
-  if (lower === 'tasks') {
+  if (lower === 'task' || lower === 'tasks' || lower === 'list') {
     const tasks = openTasks();
-    await sendToOwner(
+    await send(
       tasks.length === 0
         ? 'No open tasks.'
         : tasks
@@ -28,14 +32,14 @@ export async function handleOwnerText(text: string): Promise<void> {
     );
     return;
   }
-  if (/^done(?:\s|$)/i.test(input)) {
-    const match = /^done\s+([1-9]\d*)$/i.exec(input);
+  if (/^(?:done|complete)(?:\s|$)/i.test(input)) {
+    const match = /^(?:done|complete)\s+([1-9]\d*)$/i.exec(input);
     const id = match ? Number(match[1]) : NaN;
     if (!Number.isSafeInteger(id)) {
-      await sendToOwner('Use: done <task ID>.');
+      await send('Use: done <task ID> or complete <task ID>.');
       return;
     }
-    await sendToOwner(
+    await send(
       markDone(id)
         ? `Task #${id} marked done.`
         : `Open task #${id} was not found.`,
@@ -43,5 +47,5 @@ export async function handleOwnerText(text: string): Promise<void> {
     return;
   }
 
-  await ask(input);
+  await answer(input);
 }

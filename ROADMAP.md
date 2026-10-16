@@ -145,8 +145,8 @@ Commit when done. Do NOT open a PR.
 ```
 Read AGENTS.md and ARCHITECTURE.md. Do Step 6 only.
 - src/channels/whatsapp/send.ts: sendToOwner(text). It is the ONLY place that calls sock.sendMessage. Always prefix "🤖 <BOT_NAME>: ". Send only to the owner chat JID. Rate limit to MAX_REPLIES_PER_HOUR; drop and log if exceeded.
-- Trigger: in self mode a message counts only if it is fromMe, in the owner chat, and starts with the bot name (case-insensitive, with or without "@", followed by space/comma/colon). Strip the trigger before handling. In separate mode no trigger is needed.
-- src/features/commands.ts (no AI): "help", "tasks" (open tasks with id, subject, title, due in TIMEZONE), "done <id>". Unknown text → pass to ask (stub that replies "coming in Step 8" for now).
+- Trigger: in self mode a message counts only if it is fromMe and in the owner chat; in separate mode it must be inbound from the owner. In either mode, require the bot name at the start (case-insensitive, optional "@", followed by space/comma/colon/end) or "@<BOT_NAME>" as a whole word anywhere. Strip the trigger before handling; ignore messages without it and bot-prefixed replies.
+- src/features/commands.ts (no AI): "help"/"?", "task"/"tasks"/"list" (open tasks with id, subject, title, due in TIMEZONE), "done <id>"/"complete <id>". Unknown text → pass to ask (stub that replies "coming in Step 8" for now).
 Commit when done. Do NOT open a PR.
 ```
 
@@ -180,7 +180,7 @@ Commit when done. Do NOT open a PR.
 **Prompt:**
 ```
 Read AGENTS.md. Do Step 8 only.
-- src/features/ask.ts: build context = open tasks + tasks due in the next 14 days + the last ASK_CONTEXT_MESSAGES group messages; current time and TIMEZONE. Ask the AI to answer short and clear, in the same language the user wrote in, using only that context, and to say so if it doesn't know.
+- src/features/ask.ts: build context = open tasks + tasks due in the next 14 days + the last ASK_CONTEXT_MESSAGES group messages; current time and TIMEZONE. Include a short "About you" section with the bot name, current abilities, planned reminders, commands, and visibility limits. Ask the AI to answer short and clear in the user's language, greet naturally, and say it doesn't know when a task or deadline lacks supporting data.
 - Replace the Step 6 stub with this.
 - Send "🤖 <BOT_NAME>: thinking..." only if the answer takes more than 3 seconds.
 Commit when done. Do NOT open a PR.
