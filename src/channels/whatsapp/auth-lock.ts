@@ -113,8 +113,6 @@ export function acquireAuthSessionLock(): () => void {
     if (released) return;
     released = true;
     process.off('exit', release);
-    process.off('SIGINT', onSigint);
-    process.off('SIGTERM', onSigterm);
     try {
       if (existsSync(lockPath) && readFileSync(lockPath, 'utf8') === contents)
         unlinkSync(lockPath);
@@ -122,16 +120,6 @@ export function acquireAuthSessionLock(): () => void {
       // The process is exiting; a missing or inaccessible lock needs no further cleanup.
     }
   };
-  const onSigint = () => {
-    release();
-    process.exit(130);
-  };
-  const onSigterm = () => {
-    release();
-    process.exit(143);
-  };
   process.once('exit', release);
-  process.once('SIGINT', onSigint);
-  process.once('SIGTERM', onSigterm);
   return release;
 }
