@@ -2,6 +2,7 @@ import makeWASocket, { DisconnectReason, useMultiFileAuthState, type WASocket } 
 import qrcode from 'qrcode-terminal';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import { acquireAuthSessionLock, AuthSessionInUseError } from './auth-lock.js';
 import { clearOwnerIdentity, resolveOwnerIdentity, setOwnerIdentity } from './identity.js';
 
 const baileysLogger = logger.child({ module: 'baileys' }, { level: 'warn' });
@@ -11,6 +12,29 @@ let socket: WASocket | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectDelayMs = 1000;
 let connecting = false;
+let releaseAuthSessionLock: (() => void) | null = null;
+
+export async function createWhatsAppSocket(): Promise<{
+  socket: WASocket;
+  flushCredentials: () => Promise<void>;
+}> {
+  const { state, saveCreds } = await useMultiFileAuthState(config.AUTH_DIR);
+  const socket = makeWASocket({
+    auth: state,
+    logger: baileysLogger,
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
+  });
+
+  let pendingSave = Promise.resolve();
+  socket.ev.on('creds.update', () => {
+    pendingSave = pendingSave.then(saveCreds).catch((error: unknown) => {
+      logger.error({ err: error }, 'Could not save WhatsApp credentials');
+    });
+  });
+
+  return { socket, flushCredentials: () => pendingSave };
+}
 
 function disconnectCode(error: unknown): number | undefined {
   if (typeof error !== 'object' || error === null || !('output' in error)) return undefined;
@@ -35,21 +59,9 @@ export async function connectToWhatsApp(): Promise<void> {
   connecting = true;
 
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(config.AUTH_DIR);
-    const nextSocket = makeWASocket({
-      auth: state,
-      logger: baileysLogger,
-      markOnlineOnConnect: false,
-      syncFullHistory: false,
-    });
+    releaseAuthSessionLock ??= acquireAuthSessionLock();
+    const { socket: nextSocket, flushCredentials } = await createWhatsAppSocket();
     socket = nextSocket;
-
-    let pendingSave = Promise.resolve();
-    nextSocket.ev.on('creds.update', () => {
-      pendingSave = pendingSave.then(saveCreds).catch((error: unknown) => {
-        logger.error({ err: error }, 'Could not save WhatsApp credentials');
-      });
-    });
 
     nextSocket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
       if (socket !== nextSocket) return;
@@ -81,13 +93,17 @@ export async function connectToWhatsApp(): Promise<void> {
         if (code === DisconnectReason.restartRequired) {
           logger.info('WhatsApp requested a restart after pairing');
         }
-        scheduleReconnect(pendingSave);
+        scheduleReconnect(flushCredentials());
       }
     });
   } catch (error) {
     socket = null;
     clearOwnerIdentity();
     logger.error({ err: error }, 'Could not start WhatsApp connection');
+    if (error instanceof AuthSessionInUseError) {
+      process.exitCode = 1;
+      return;
+    }
     scheduleReconnect();
   } finally {
     connecting = false;
