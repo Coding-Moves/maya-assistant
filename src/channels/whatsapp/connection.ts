@@ -1,11 +1,10 @@
 import makeWASocket, { DisconnectReason, useMultiFileAuthState, type WASocket } from 'baileys';
-import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { clearOwnerIdentity, resolveOwnerIdentity, setOwnerIdentity } from './identity.js';
 
-const baileysLogger = pino({ level: 'warn' });
+const baileysLogger = logger.child({ module: 'baileys' }, { level: 'warn' });
 const maxReconnectDelayMs = 5 * 60 * 1000;
 
 let socket: WASocket | null = null;
