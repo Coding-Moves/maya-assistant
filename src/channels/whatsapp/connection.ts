@@ -9,10 +9,15 @@ const baileysLogger = logger.child({ module: 'baileys' }, { level: 'warn' });
 const maxReconnectDelayMs = 5 * 60 * 1000;
 
 let socket: WASocket | null = null;
+let socketOpen = false;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectDelayMs = 1000;
 let connecting = false;
 let releaseAuthSessionLock: (() => void) | null = null;
+
+export function getConnectedSocket(): WASocket | null {
+  return socketOpen ? socket : null;
+}
 
 export async function createWhatsAppSocket(): Promise<{
   socket: WASocket;
@@ -63,6 +68,7 @@ export async function connectToWhatsApp(): Promise<void> {
     const { attachWhatsAppRouter } = await import('./router.js');
     const { socket: nextSocket, flushCredentials } = await createWhatsAppSocket();
     socket = nextSocket;
+    socketOpen = false;
     const detachRouter = attachWhatsAppRouter(nextSocket);
 
     nextSocket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
@@ -70,6 +76,7 @@ export async function connectToWhatsApp(): Promise<void> {
       if (qr) qrcode.generate(qr, { small: true });
 
       if (connection === 'open') {
+        socketOpen = true;
         reconnectDelayMs = 1000;
         const name = nextSocket.user?.name ?? nextSocket.user?.notify ?? 'WhatsApp account';
         logger.info(`Connected as ${name}`);
@@ -85,6 +92,7 @@ export async function connectToWhatsApp(): Promise<void> {
       }
 
       if (connection === 'close') {
+        socketOpen = false;
         detachRouter();
         socket = null;
         clearOwnerIdentity();
@@ -101,6 +109,7 @@ export async function connectToWhatsApp(): Promise<void> {
     });
   } catch (error) {
     socket = null;
+    socketOpen = false;
     clearOwnerIdentity();
     logger.error({ err: error }, 'Could not start WhatsApp connection');
     if (error instanceof AuthSessionInUseError) {

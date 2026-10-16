@@ -1,9 +1,11 @@
 import type { BaileysEventMap, GroupMetadata, WASocket } from 'baileys';
 import { config } from '../../config/env.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
+import { handleOwnerText } from '../../features/commands.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat } from './identity.js';
 import { parseMessageText } from './parse.js';
+import { ownerInput } from './trigger.js';
 
 const allowedGroups = new Set(config.GROUP_ALLOWLIST);
 const botPrefix = `🤖 ${config.BOT_NAME}:`;
@@ -71,7 +73,15 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
           logger.debug({ err: error }, 'Group message ingest failure details');
         }
       } else if (isOwnerChat(chatId, message.key.remoteJidAlt)) {
-        // Owner commands are added in Step 6.
+        const input = ownerInput(text, message.key.fromMe);
+        if (input)
+          void handleOwnerText(input).catch((error: unknown) => {
+            logger.error(
+              { errorType: error instanceof Error ? error.name : 'unknown' },
+              'Could not handle owner message',
+            );
+            logger.debug({ err: error }, 'Owner command failure details');
+          });
       }
     }
   };
