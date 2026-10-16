@@ -121,8 +121,11 @@ export async function extractOnce(
         'Message extraction failed',
       );
       logger.debug({ err: error }, 'Extraction failure details');
-      incrementExtractAttempts(messages.map(({ id }) => id));
-      quarantineFailedBatch(messages.map(({ id }) => id));
+      const ids = messages.map(({ id }) => id);
+      db.transaction(() => {
+        incrementExtractAttempts(ids);
+        quarantineFailedBatch(ids);
+      })();
     }
   }
   await notifyFailures(send);
