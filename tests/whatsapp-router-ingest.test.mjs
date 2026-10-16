@@ -88,6 +88,7 @@ test('stores only live allowlisted text, with metadata, UTC time, and deduplicat
           },
         },
         message('blocked', 'blocked@g.us', 'Private group'),
+        message('direct', 'someone@s.whatsapp.net', 'Private chat'),
         message('bot', groupId, `🤖 ${config.BOT_NAME}: reply`),
         message('no-time', groupId, 'Missing time', null),
       ],

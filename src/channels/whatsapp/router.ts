@@ -44,10 +44,10 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
     for (const message of messages) {
       const chatId = message.key.remoteJid;
       if (!chatId) continue;
+      const text = parseMessageText(message.message);
+      if (!text || text.startsWith(botPrefix)) continue;
 
       if (allowedGroups.has(chatId)) {
-        const text = parseMessageText(message.message);
-        if (!text || text.startsWith(botPrefix)) continue;
         try {
           const id = ingestGroupMessage(
             message,
