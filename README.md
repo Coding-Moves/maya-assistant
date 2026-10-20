@@ -133,3 +133,7 @@ MIT. Use it, change it, share it.
 ---
 
 *Built by a student who missed one deadline too many.*
+
+## Coding Moves Lab
+
+Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). The implemented group-ingest and task features are still in development; scheduled reminders remain planned.
