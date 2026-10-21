@@ -50,3 +50,29 @@ test('command aliases reply without calling AI', async () => {
   await handleOwnerText('What can you do?', send, ask);
   assert.deepEqual(questions, ['What can you do?']);
 });
+
+test('hidden debug command runs a job without calling AI', async () => {
+  const replies = [];
+  const jobs = [];
+  const send = async (text) => {
+    replies.push(text);
+    return true;
+  };
+  const ask = async () => {
+    throw new Error('Debug commands must not call AI');
+  };
+  const run = async (name) => {
+    jobs.push(name);
+    return 'not-sent';
+  };
+
+  await handleOwnerText('debug run morning', send, ask, run);
+  await handleOwnerText('debug run evening', send, ask, run);
+  await handleOwnerText('debug run weekly', send, ask, run);
+  await handleOwnerText('debug run invalid', send, ask, run);
+
+  assert.deepEqual(jobs, ['morning', 'evening', 'weekly']);
+  assert.equal(replies.length, 4);
+  assert.match(replies[0], /no message sent/);
+  assert.match(replies[3], /Use: debug run/);
+});
