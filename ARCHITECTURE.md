@@ -192,6 +192,8 @@ In self mode, an owner message needs a trigger: start with the bot name (case-in
 
 In separate mode, mark an accepted owner's message as read when starting the reply. While Gemini answers a question, send owner-chat `composing` presence, refresh it for long requests, and send `paused` when work ends. Baileys follows the account's read-receipt privacy setting, so blue ticks require read receipts to be enabled.
 
+In separate mode, `OWNER_NAME` is an optional preferred name for occasional warm replies. Questions, weekly plans, reminders, and commands should read like short personal texts; match the owner's language for replies to messages. Use at most one natural emoji and WhatsApp formatting only. The self-mode reply style and delayed progress text stay unchanged.
+
 Baileys 7 uses LIDs (`...@lid`) by default. `jidNormalizedUser` strips device suffixes but does not map PN to LID; use `sock.signalRepository.lidMapping.getLIDForPN` where needed. Never assume a JID is a phone number.
 
 ## Safety settings

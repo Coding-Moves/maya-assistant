@@ -15,7 +15,7 @@ const { ask } = await import('../src/features/ask.ts');
 migrate();
 after(() => db.close());
 
-test('answers from allowlisted context without a progress message', async () => {
+test('answers from allowlisted context', async () => {
   createTask({
     type: 'quiz',
     title: 'Math quiz',
@@ -62,7 +62,7 @@ test('answers from allowlisted context without a progress message', async () => 
   );
 });
 
-test('wraps an AI answer in typing presence and sends only the answer', async () => {
+test('self mode skips typing presence and sends only a fast answer', async () => {
   const events = [];
   await ask(
     'Hello',
@@ -74,19 +74,13 @@ test('wraps an AI answer in typing presence and sends only the answer', async ()
       events.push(value);
       return true;
     },
-    async (work) => {
-      events.push('composing');
-      try {
-        return await work();
-      } finally {
-        events.push('paused');
-      }
-    },
+    async () => { throw new Error('Self mode must not show typing'); },
+    20,
   );
-  assert.deepEqual(events, ['composing', 'generate', 'paused', 'Hi!']);
+  assert.deepEqual(events, ['generate', 'Hi!']);
 });
 
-test('never sends a thinking message for a slow answer', async () => {
+test('self mode sends delayed thinking progress for a slow answer', async () => {
   const replies = [];
   await ask(
     'What is due?',
@@ -98,12 +92,13 @@ test('never sends a thinking message for a slow answer', async () => {
       replies.push(value);
       return true;
     },
-    async (work) => work(),
+    async () => { throw new Error('Self mode must not show typing'); },
+    5,
   );
-  assert.deepEqual(replies, ['Math quiz.']);
+  assert.deepEqual(replies, ['thinking...', 'Math quiz.']);
 });
 
-test('pauses typing and sends an error reply after AI failure', async () => {
+test('self mode sends an error reply after AI failure', async () => {
   const events = [];
   await ask(
     'What is due?',
@@ -112,18 +107,9 @@ test('pauses typing and sends an error reply after AI failure', async () => {
       events.push(text);
       return true;
     },
-    async (work) => {
-      events.push('composing');
-      try {
-        return await work();
-      } finally {
-        events.push('paused');
-      }
-    },
+    async () => { throw new Error('Self mode must not show typing'); },
   );
   assert.deepEqual(events, [
-    'composing',
-    'paused',
     'I could not answer right now. Please try again later.',
   ]);
 });

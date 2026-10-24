@@ -182,7 +182,7 @@ Commit when done. Do NOT open a PR.
 Read AGENTS.md. Do Step 8 only.
 - src/features/ask.ts: build context = open tasks + tasks due in the next 14 days + the last ASK_CONTEXT_MESSAGES group messages; current time and TIMEZONE. Include a short "About you" section with the bot name, current abilities, planned reminders, commands, and visibility limits. Ask the AI to answer short and clear in the user's language, greet naturally, and say it doesn't know when a task or deadline lacks supporting data.
 - Replace the Step 6 stub with this.
-- Send no "thinking..." text. In separate mode, show owner-chat `composing` presence while Gemini works, then `paused`.
+- In separate mode, send no "thinking..." text; show owner-chat `composing` presence while Gemini works, then `paused`. Self mode retains its delayed progress text.
 Commit when done. Do NOT open a PR.
 ```
 

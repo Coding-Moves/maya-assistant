@@ -20,7 +20,7 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 - 👂 **Listens** only to the groups you pick. She never posts in them.
 - 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it.
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
-- 💬 **Answers questions** when you message her. If you don't call her name, she ignores you, so your notes stay notes.
+- 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
 - 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; selected group text is sent to Gemini for analysis.
 - 💸 **API costs depend on your Gemini plan and usage.** Check your model's pricing and set a budget alert before leaving Maya running.
 
@@ -99,7 +99,8 @@ Everything lives in `.env`. The main ones:
 | Setting | What it does | Example |
 |---|---|---|
 | `BOT_NAME` | Her name, and the word that wakes her up in self mode | `Maya` |
-| `BOT_MODE` | `self` = your own number, `separate` = second SIM | `self` |
+| `BOT_MODE` | `self` = your own number, `separate` = second SIM | `separate` |
+| `OWNER_NAME` | Optional name Maya uses occasionally in separate mode | `Muawiya` |
 | `GROUP_ALLOWLIST` | Which groups she reads | `1203...@g.us` |
 | `TIMEZONE` | Your timezone for reminders | `Asia/Karachi` |
 | `MORNING_DIGEST_CRON` | When to send "due today" | `0 8 * * *` |
