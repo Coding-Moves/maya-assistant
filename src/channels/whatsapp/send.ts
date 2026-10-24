@@ -6,22 +6,34 @@ import { getOwnerChatJid, isOwnerChat } from './identity.js';
 
 const sentAt: { at: number }[] = [];
 const oneHourMs = 60 * 60 * 1000;
+const presenceTimeoutMs = 1500;
 let activeAiReplies = 0;
 let typingTimer: NodeJS.Timeout | null = null;
 let presenceQueue = Promise.resolve();
+type OwnerPresence = (type: 'composing' | 'paused') => Promise<void>;
 
 function ownerPresence(type: 'composing' | 'paused'): Promise<void> {
   presenceQueue = presenceQueue.then(async () => {
     const sock = getConnectedSocket();
     const ownerJid = getOwnerChatJid();
     if (!sock || !ownerJid) return;
+    let timeout: NodeJS.Timeout | undefined;
     try {
-      await sock.sendPresenceUpdate(type, ownerJid);
+      await Promise.race([
+        sock.sendPresenceUpdate(type, ownerJid),
+        new Promise<never>((_, reject) => {
+          const timer = setTimeout(() => reject(new Error('Presence update timed out')), presenceTimeoutMs);
+          timer.unref();
+          timeout = timer;
+        }),
+      ]);
     } catch (error) {
       logger.warn(
         { errorType: error instanceof Error ? error.name : 'unknown' },
         'Could not update owner typing presence',
       );
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
   }).catch((error: unknown) => {
     logger.warn(
@@ -32,14 +44,25 @@ function ownerPresence(type: 'composing' | 'paused'): Promise<void> {
   return presenceQueue;
 }
 
-export async function withOwnerTyping<T>(work: () => Promise<T>): Promise<T> {
+export async function withOwnerTyping<T>(
+  work: () => Promise<T>,
+  presence: OwnerPresence = ownerPresence,
+): Promise<T> {
   if (config.BOT_MODE !== 'separate') return work();
+  const announce = (type: 'composing' | 'paused') => {
+    void presence(type).catch((error: unknown) => {
+      logger.warn(
+        { errorType: error instanceof Error ? error.name : 'unknown' },
+        'Could not update owner typing presence',
+      );
+    });
+  };
 
   activeAiReplies += 1;
   try {
     if (activeAiReplies === 1) {
-      await ownerPresence('composing');
-      typingTimer = setInterval(() => void ownerPresence('composing'), 8_000);
+      announce('composing');
+      typingTimer = setInterval(() => announce('composing'), 8_000);
     }
     return await work();
   } finally {
@@ -47,7 +70,7 @@ export async function withOwnerTyping<T>(work: () => Promise<T>): Promise<T> {
     if (activeAiReplies === 0) {
       if (typingTimer) clearInterval(typingTimer);
       typingTimer = null;
-      await ownerPresence('paused');
+      announce('paused');
     }
   }
 }
