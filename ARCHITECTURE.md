@@ -16,7 +16,7 @@ flowchart TD
     G[WhatsApp groups] -->|read only| W[Baileys socket]
     W --> R{Router}
     R -->|allowlisted group| I[Ingest]
-    R -->|owner chat + trigger word| Q[Ask / Commands]
+    R -->|verified owner chat| Q[Ask / Commands]
     R -->|anything else| X[Ignore]
     I --> DB[(SQLite: messages)]
     DB --> E[Extractor job, every N min]
@@ -35,7 +35,7 @@ flowchart TD
 - **Batch extraction.** The AI runs on batches of unprocessed messages every `EXTRACT_INTERVAL_MIN` minutes, not on every message. This means fewer API calls, lower cost, and better context (it can see "quiz moved to Monday" right after "quiz on Friday").
 - **Update, don't duplicate.** The extractor gets the list of open tasks with each batch, so it can update an existing task (a new date, or cancelled) instead of creating a second one.
 - **One way out.** Only `sendToOwner()` can send messages. This is the main safety rule.
-- **Loop guard.** Every reply starts with `🤖 <BOT_NAME>:`. The router ignores any message starting with that prefix.
+- **Loop guard.** Self mode keeps the `🤖 <BOT_NAME>:` prefix and ignores it on input. Separate mode sends plain text and ignores Maya's outgoing messages through `key.fromMe`.
 - **Sources are pluggable (later).** WhatsApp is the first source. Future sources (LMS, email) write into the same `messages`/`tasks` tables, so reminders and Q&A work for all of them.
 
 ## Tech stack
@@ -66,7 +66,7 @@ maya-assistant/
 │   │       ├── identity.ts       # Owner JIDs (PN + LID) for self/separate mode
 │   │       ├── parse.ts          # Text from conversation, extendedText, image/doc captions
 │   │       ├── router.ts         # Decide: ingest | ask | ignore
-│   │       └── send.ts           # sendToOwner(): the ONLY sender, with prefix + rate limit
+│   │       └── send.ts           # Owner-only sending, read receipts, typing presence, rate limit
 │   ├── db/
 │   │   ├── client.ts             # better-sqlite3 connection
 │   │   ├── schema.sql            # Tables + indexes
@@ -188,7 +188,15 @@ If validation or extraction fails, log it without message text, increment `extra
 - **`self` mode:** the owner is the account itself. Owner chat = self-chat. Detect it by matching `remoteJid` (or its alternate JID, when present) against *both* available `sock.user.id` (PN) and `sock.user.lid` (LID), normalized with `jidNormalizedUser`, and require `fromMe === true`.
 - **`separate` mode:** the owner is `OWNER_JID` (match its PN or resolved LID, including the alternate JID when present) and the message must be inbound. If the LID mapping is unavailable, fail closed for an unrecognized LID rather than treating any direct chat as the owner.
 
-In both modes, an owner message needs a trigger: start with the bot name (case-insensitive, optional `@`, followed by space, comma, colon, or end), or include `@<BOT_NAME>` as a whole word anywhere. Strip the trigger before handling; ignore other messages and bot-prefixed replies.
+On a separate-number connection, make the configured owner PN available before the asynchronous LID lookup finishes. For an unfamiliar inbound LID, consult Baileys' LID-to-PN mapping and accept it only if it resolves exactly to `OWNER_JID`. If the mapping is missing or fails, ignore the message. A pending lookup from a detached socket must never dispatch a reply.
+
+In self mode, an owner message needs a trigger: start with the bot name (case-insensitive, optional `@`, followed by space, comma, colon, or end), or include `@<BOT_NAME>` as a whole word anywhere. Strip the trigger before handling; ignore other messages and bot-prefixed replies. In separate mode, handle any inbound text from the verified owner without requiring a trigger; strip an optional trigger for compatibility. Ignore Maya's own outgoing messages using `key.fromMe`.
+
+In separate mode, mark an accepted owner's message as read when starting the reply. While Gemini answers a question, send owner-chat `composing` presence, refresh it for long requests, and send `paused` when work ends. Baileys follows the account's read-receipt privacy setting, so blue ticks require read receipts to be enabled.
+
+In separate mode, `OWNER_NAME` is an optional preferred name for occasional warm replies. Questions, weekly plans, reminders, and commands should read like short personal texts; match the owner's language for replies to messages. Use at most one natural emoji and WhatsApp formatting only. The self-mode reply style and delayed progress text stay unchanged.
+
+In separate mode, natural completion phrases can mark a sole open task done or a task clearly named in the recent conversation. If several tasks match, ask which one by title and accept the owner's title reply; never guess. `done <id>` remains available. The recent discussion hint is in memory for ten minutes and resets on restart.
 
 Baileys 7 uses LIDs (`...@lid`) by default. `jidNormalizedUser` strips device suffixes but does not map PN to LID; use `sock.signalRepository.lidMapping.getLIDForPN` where needed. Never assume a JID is a phone number.
 

@@ -11,6 +11,7 @@ const cronExpression = (defaultValue: string) =>
 const envSchema = z
   .object({
     BOT_NAME: z.string().trim().min(1).default('Maya'),
+    OWNER_NAME: z.string().trim().default(''),
     BOT_MODE: z.enum(['self', 'separate']).default('self'),
     OWNER_JID: z
       .string()

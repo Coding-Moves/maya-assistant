@@ -12,23 +12,26 @@ export function ownerInput(
   fromMe: boolean | null | undefined,
 ): string | null {
   if (config.BOT_MODE === 'self' && fromMe !== true) return null;
-  if (config.BOT_MODE === 'separate' && fromMe) return null;
+  if (config.BOT_MODE === 'separate' && fromMe !== false) return null;
   const input = text.trim();
   const leading = leadingTrigger.exec(input);
-  if (leading)
-    return input
+  if (leading) {
+    const remainder = input
       .slice(leading[0].length)
       .replace(/^[\s,:]+/, '')
       .trim();
+    return remainder || (config.BOT_MODE === 'separate' ? input : '');
+  }
 
   const mention = mentionTrigger.exec(input);
-  if (!mention) return null;
-  const start = mention.index + mention[1].length;
+  if (!mention) return config.BOT_MODE === 'separate' ? input : null;
+  const start = mention.index + (mention[1] ?? '').length;
   const before = input.slice(0, start).replace(/[\s,:([\]]+$/, '');
   const after = input
     .slice(start + 1 + config.BOT_NAME.length)
     .replace(/^[\s,:)[\]]+/, '')
     .trim();
-  if (!before || !after) return before || after;
+  if (!before || !after)
+    return before || after || (config.BOT_MODE === 'separate' ? input : '');
   return /^[!?.,;:]/.test(after) ? before + after : `${before} ${after}`;
 }

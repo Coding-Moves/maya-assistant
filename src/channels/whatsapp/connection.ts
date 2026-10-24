@@ -3,7 +3,7 @@ import qrcode from 'qrcode-terminal';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { acquireAuthSessionLock, AuthSessionInUseError } from './auth-lock.js';
-import { clearOwnerIdentity, resolveOwnerIdentity, setOwnerIdentity } from './identity.js';
+import { clearOwnerIdentity, configuredOwnerIdentity, resolveOwnerIdentity, setOwnerIdentity } from './identity.js';
 
 const baileysLogger = logger.child({ module: 'baileys' }, { level: 'warn' });
 const maxReconnectDelayMs = 5 * 60 * 1000;
@@ -76,6 +76,8 @@ export async function connectToWhatsApp(): Promise<void> {
       if (qr) qrcode.generate(qr, { small: true });
 
       if (connection === 'open') {
+        if (config.BOT_MODE === 'separate')
+          setOwnerIdentity(configuredOwnerIdentity());
         socketOpen = true;
         reconnectDelayMs = 1000;
         const name = nextSocket.user?.name ?? nextSocket.user?.notify ?? 'WhatsApp account';

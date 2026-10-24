@@ -8,10 +8,8 @@ If you're in a busy WhatsApp group (a class, a course, a team, a community), you
 
 Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose, picks out the things that matter, and reminds you before it's too late. You can also just ask her:
 
-> **You:** @maya anything due this week?
-> **Maya:** 🤖 Maya: You have 2 things coming up:
-> 1. **MTH501 quiz**, Tuesday 9 AM (moved from Monday)
-> 2. **CS101 assignment 3**, due Thursday 11:59 PM
+> **You:** Anything due this week?
+> **Maya:** Your MTH501 quiz is Tuesday at 9 AM, and CS101 assignment 3 is due Thursday at 11:59 PM. You've got this 🌿
 
 ---
 
@@ -20,7 +18,7 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 - 👂 **Listens** only to the groups you pick. She never posts in them.
 - 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it.
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
-- 💬 **Answers questions** when you message her. If you don't call her name, she ignores you, so your notes stay notes.
+- 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
 - 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; selected group text is sent to Gemini for analysis.
 - 💸 **API costs depend on your Gemini plan and usage.** Check your model's pricing and set a budget alert before leaving Maya running.
 
@@ -52,7 +50,7 @@ Want the technical details? See [ARCHITECTURE.md](ARCHITECTURE.md).
 You'll need **Node.js 22 or newer** (we develop on Node 24), a **Gemini API key** from [Google AI Studio](https://aistudio.google.com/), and your **phone** with WhatsApp.
 
 ```bash
-git clone https://github.com/Muawiya-contact/maya-assistant.git
+git clone https://github.com/Coding-Moves/maya-assistant.git
 cd maya-assistant
 npm install
 cp .env.example .env
@@ -88,7 +86,9 @@ Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart
 | `maya help` or `maya ?` | Shows what she can do |
 | `buy milk` | Ignored, it's your note |
 
-**On a second number:** save it as "Maya" in your contacts and include her name or `@maya` in messages you want her to handle.
+**On a second number:** save it as "Maya" in your contacts and message her directly. You can write `done 4`, `hi`, or ask a question without using her name first. She replies in plain text, shows typing while answering with AI, and marks your message read when she starts replying. Messages from other people are ignored.
+
+You can also say “I've done it” or “ho gaya”. If one open task or a task you just discussed clearly matches, Maya ticks it off. If several could match, she asks you which one by name.
 
 Don't like the name? Set `BOT_NAME` in `.env` to anything you want.
 
@@ -98,8 +98,9 @@ Everything lives in `.env`. The main ones:
 
 | Setting | What it does | Example |
 |---|---|---|
-| `BOT_NAME` | Her name, and the word that wakes her up | `Maya` |
-| `BOT_MODE` | `self` = your own number, `separate` = second SIM | `self` |
+| `BOT_NAME` | Her name, and the word that wakes her up in self mode | `Maya` |
+| `BOT_MODE` | `self` = your own number, `separate` = second SIM | `separate` |
+| `OWNER_NAME` | Optional name Maya uses occasionally in separate mode | `Muawiya` |
 | `GROUP_ALLOWLIST` | Which groups she reads | `1203...@g.us` |
 | `TIMEZONE` | Your timezone for reminders | `Asia/Karachi` |
 | `MORNING_DIGEST_CRON` | When to send "due today" | `0 8 * * *` |
@@ -116,7 +117,7 @@ The full list is in [`.env.example`](.env.example).
 3. Delete the `auth_info/` folder.
 4. Run `npm run dev` and scan the QR **with the new phone**.
 
-In either mode, include Maya's name or `@maya` in messages you want her to handle. Messages without a trigger are ignored.
+In self mode, include Maya's name or `@maya` in messages you want her to handle. On a separate number, direct messages from the owner need no trigger.
 
 ## What's coming
 

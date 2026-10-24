@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 
 process.env.GEMINI_API_KEY = 'test';
+process.env.BOT_MODE = 'self';
 process.env.DATABASE_PATH = ':memory:';
 process.env.GROUP_ALLOWLIST = 'allowed@g.us';
 
@@ -14,7 +15,7 @@ const { ask } = await import('../src/features/ask.ts');
 migrate();
 after(() => db.close());
 
-test('answers from allowlisted context without an early thinking message', async () => {
+test('answers from allowlisted context', async () => {
   createTask({
     type: 'quiz',
     title: 'Math quiz',
@@ -44,7 +45,7 @@ test('answers from allowlisted context without an early thinking message', async
       replies.push(value);
       return true;
     },
-    50,
+    async (work) => work(),
   );
   assert.deepEqual(replies, ['Math quiz is due soon.']);
   assert.match(prompt, /Math quiz/);
@@ -61,22 +62,25 @@ test('answers from allowlisted context without an early thinking message', async
   );
 });
 
-test('cancels the thinking timer after a fast answer', async () => {
-  const replies = [];
+test('self mode skips typing presence and sends only a fast answer', async () => {
+  const events = [];
   await ask(
     'Hello',
-    async () => 'Hi!',
+    async () => {
+      events.push('generate');
+      return 'Hi!';
+    },
     async (value) => {
-      replies.push(value);
+      events.push(value);
       return true;
     },
-    10,
+    async () => { throw new Error('Self mode must not show typing'); },
+    20,
   );
-  await new Promise((resolve) => setTimeout(resolve, 25));
-  assert.deepEqual(replies, ['Hi!']);
+  assert.deepEqual(events, ['generate', 'Hi!']);
 });
 
-test('sends thinking before a slow answer', async () => {
+test('self mode sends delayed thinking progress for a slow answer', async () => {
   const replies = [];
   await ask(
     'What is due?',
@@ -88,25 +92,24 @@ test('sends thinking before a slow answer', async () => {
       replies.push(value);
       return true;
     },
+    async () => { throw new Error('Self mode must not show typing'); },
     5,
   );
   assert.deepEqual(replies, ['thinking...', 'Math quiz.']);
 });
 
-test('marks thinking as progress so it can be skipped at low quota', async () => {
-  const replies = [];
+test('self mode sends an error reply after AI failure', async () => {
+  const events = [];
   await ask(
     'What is due?',
-    async () => {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-      return 'Math quiz.';
-    },
-    async (text, kind) => {
-      if (kind === 'progress') return false;
-      replies.push(text);
+    async () => { throw new Error('API unavailable'); },
+    async (text) => {
+      events.push(text);
       return true;
     },
-    5,
+    async () => { throw new Error('Self mode must not show typing'); },
   );
-  assert.deepEqual(replies, ['Math quiz.']);
+  assert.deepEqual(events, [
+    'I could not answer right now. Please try again later.',
+  ]);
 });

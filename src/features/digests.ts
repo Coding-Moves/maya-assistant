@@ -40,15 +40,29 @@ export async function runDigest(
   );
   if (tasks.length === 0) return false;
 
-  const lines = tasks.map(
-    (task) =>
-      `#${task.id} ${task.subject ? `${task.subject} — ` : ''}${task.title} (${formatInTimezone(new Date(task.dueAt!), { timeStyle: 'short' })})`,
-  );
-  const sent = await send(
-    `Due ${period === 'morning' ? 'today' : 'tomorrow'}:\n${lines.join('\n')}`,
-  );
+  const text = config.BOT_MODE === 'separate'
+    ? warmDigest(period, tasks)
+    : `Due ${period === 'morning' ? 'today' : 'tomorrow'}:\n${tasks.map(
+      (task) => `#${task.id} ${task.subject ? `${task.subject} — ` : ''}${task.title} (${formatInTimezone(new Date(task.dueAt!), { timeStyle: 'short' })})`,
+    ).join('\n')}`;
+  const sent = await send(text);
   if (!sent) return false;
 
   for (const task of tasks) markReminded(task.id, period, task.dueAt!);
   return true;
+}
+
+function warmDigest(period: DigestPeriod, tasks: ReturnType<typeof openTasks>): string {
+  const when = period === 'morning' ? 'today' : 'tomorrow';
+  const greeting = period === 'morning'
+    ? `Good morning${config.OWNER_NAME ? ` ${config.OWNER_NAME}` : ''} ☀️`
+    : 'Good evening 🌙';
+  const items = tasks.map((task) =>
+    `${task.subject ? `${task.subject} — ` : ''}${task.title} at ${formatInTimezone(new Date(task.dueAt!), { timeStyle: 'short' })}`,
+  );
+  if (items.length === 1)
+    return `${greeting} Just a gentle reminder — your ${items[0]} is ${when}. You've got this!`;
+  if (items.length === 2)
+    return `${greeting} A gentle reminder for ${when}: ${items[0]}, and ${items[1]}. You've got this!`;
+  return `${greeting} Here's what's coming up ${when}:\n${items.map((item) => `• ${item}`).join('\n')}\nYou've got this!`;
 }

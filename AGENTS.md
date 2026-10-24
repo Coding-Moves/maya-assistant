@@ -8,8 +8,9 @@ Instructions for AI coding agents (Codex, Claude Code, Cursor, etc.) working on 
 
 ## Hard rules (never break these)
 - **Only `sendToOwner()` in `src/channels/whatsapp/send.ts` may call `sock.sendMessage`.** No other file sends messages.
+- WhatsApp read receipts and typing presence must also be sent only from `src/channels/whatsapp/send.ts`, and only for the verified owner in separate mode.
 - **Never send to groups or to anyone except the owner.** Groups are read-only.
-- Every bot message starts with `🤖 ${BOT_NAME}: `. The router must ignore messages that start with this prefix.
+- In self mode, every bot message starts with `🤖 ${BOT_NAME}: ` and the router ignores that prefix. In separate mode, send plain text and use `key.fromMe` as the outgoing loop guard.
 - Never commit `.env`, `auth_info/`, `data/`, or any `*.db` file.
 - Never log message text at `info` level or above. Use `debug`.
 - Never hardcode a phone number, group ID, timezone, name, or API key. Everything comes from `src/config/env.ts`.
