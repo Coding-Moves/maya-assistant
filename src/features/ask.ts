@@ -5,6 +5,7 @@ import { recentMessages } from '../db/repos/messages.js';
 import { openTasks, tasksDueBetween } from '../db/repos/tasks.js';
 import { logger } from '../utils/logger.js';
 import { formatInTimezone } from '../utils/time.js';
+import { noteDiscussedTask } from './natural-done.js';
 
 type GenerateAnswer = (prompt: string) => Promise<string>;
 type SendReply = (
@@ -108,5 +109,6 @@ export async function ask(
       ? "Sorry, I'm having trouble answering right now. Could you try again in a little while?"
       : 'I could not answer right now. Please try again later.';
   }
-  await send(answer);
+  const sent = await send(answer);
+  if (sent && config.BOT_MODE === 'separate') noteDiscussedTask(answer);
 }

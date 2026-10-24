@@ -4,6 +4,7 @@ import { markDone, openTasks } from '../db/repos/tasks.js';
 import { runJob } from '../scheduler/jobs.js';
 import { formatInTimezone } from '../utils/time.js';
 import { ask } from './ask.js';
+import { clearCompletionContext, handleNaturalDone } from './natural-done.js';
 
 export async function handleOwnerText(
   text: string,
@@ -14,6 +15,15 @@ export async function handleOwnerText(
   const input = text.trim();
   if (!input) return;
   const lower = input.toLowerCase();
+
+  if (config.BOT_MODE === 'separate') {
+    const naturalReply = handleNaturalDone(input);
+    if (naturalReply !== null) {
+      await send(naturalReply);
+      return;
+    }
+    clearCompletionContext();
+  }
 
   if (lower === 'help' || lower === '?') {
     await send(

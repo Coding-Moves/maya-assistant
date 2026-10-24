@@ -90,6 +90,8 @@ Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart
 
 **On a second number:** save it as "Maya" in your contacts and message her directly. You can write `done 4`, `hi`, or ask a question without using her name first. She replies in plain text, shows typing while answering with AI, and marks your message read when she starts replying. Messages from other people are ignored.
 
+You can also say “I've done it” or “ho gaya”. If one open task or a task you just discussed clearly matches, Maya ticks it off. If several could match, she asks you which one by name.
+
 Don't like the name? Set `BOT_NAME` in `.env` to anything you want.
 
 ## Settings

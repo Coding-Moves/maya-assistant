@@ -194,6 +194,8 @@ In separate mode, mark an accepted owner's message as read when starting the rep
 
 In separate mode, `OWNER_NAME` is an optional preferred name for occasional warm replies. Questions, weekly plans, reminders, and commands should read like short personal texts; match the owner's language for replies to messages. Use at most one natural emoji and WhatsApp formatting only. The self-mode reply style and delayed progress text stay unchanged.
 
+In separate mode, natural completion phrases can mark a sole open task done or a task clearly named in the recent conversation. If several tasks match, ask which one by title and accept the owner's title reply; never guess. `done <id>` remains available. The recent discussion hint is in memory for ten minutes and resets on restart.
+
 Baileys 7 uses LIDs (`...@lid`) by default. `jidNormalizedUser` strips device suffixes but does not map PN to LID; use `sock.signalRepository.lidMapping.getLIDForPN` where needed. Never assume a JID is a phone number.
 
 ## Safety settings
