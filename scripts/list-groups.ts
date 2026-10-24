@@ -4,6 +4,7 @@ import type { WASocket } from 'baileys';
 import { config } from '../src/config/env.js';
 import { acquireAuthSessionLock } from '../src/channels/whatsapp/auth-lock.js';
 import { createWhatsAppSocket } from '../src/channels/whatsapp/connection.js';
+import { suppressSignalSessionLogs } from '../src/utils/signal-console.js';
 
 function waitForConnection(socket: WASocket): Promise<void> {
   return new Promise((resolveConnection, rejectConnection) => {
@@ -51,6 +52,7 @@ function waitForConnection(socket: WASocket): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  suppressSignalSessionLogs();
   const releaseLock = acquireAuthSessionLock();
   let socket: WASocket | undefined;
   let flushCredentials: (() => Promise<void>) | undefined;
