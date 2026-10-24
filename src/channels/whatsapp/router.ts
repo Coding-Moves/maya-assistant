@@ -5,6 +5,7 @@ import { handleOwnerText } from '../../features/commands.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat } from './identity.js';
 import { parseMessageText } from './parse.js';
+import { markOwnerMessageRead } from './send.js';
 import { ownerInput } from './trigger.js';
 
 const allowedGroups = new Set(config.GROUP_ALLOWLIST);
@@ -48,7 +49,8 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
       if (!chatId) continue;
       const text = parseMessageText(message.message);
       if (!text) continue;
-      if (config.BOT_MODE === 'separate' && message.key.fromMe === true) continue;
+      if (config.BOT_MODE === 'separate' && message.key.fromMe === true)
+        continue;
       if (config.BOT_MODE === 'self' && text.startsWith(botPrefix)) continue;
 
       if (allowedGroups.has(chatId)) {
@@ -76,7 +78,8 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
         }
       } else if (isOwnerChat(chatId, message.key.remoteJidAlt)) {
         const input = ownerInput(text, message.key.fromMe);
-        if (input)
+        if (input) {
+          void markOwnerMessageRead(message.key);
           void handleOwnerText(input).catch((error: unknown) => {
             logger.error(
               { errorType: error instanceof Error ? error.name : 'unknown' },
@@ -84,6 +87,7 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
             );
             logger.debug({ err: error }, 'Owner command failure details');
           });
+        }
       }
     }
   };

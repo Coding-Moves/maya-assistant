@@ -127,7 +127,7 @@ Read AGENTS.md and ARCHITECTURE.md. Do Step 5 only.
   - group JID in GROUP_ALLOWLIST → features/ingest.ts
   - isOwnerChat(jid) → (placeholder, handled in Step 6)
   - everything else → ignore
-  - Ignore any message whose text starts with the bot prefix "🤖 <BOT_NAME>:".
+  - In self mode, ignore any message whose text starts with the bot prefix "🤖 <BOT_NAME>:". In separate mode, ignore Maya's own outgoing messages using `key.fromMe`.
 - src/features/ingest.ts: save to messages (source 'whatsapp', external_id = key.id, chat_id = allowlisted group JID, chat_name from group metadata cache, sent_at from messageTimestamp in UTC). Deduplicate by source + chat_id + external_id.
 - Log at debug level only (no message text at info).
 Commit when done. Do NOT open a PR.
@@ -144,7 +144,7 @@ Commit when done. Do NOT open a PR.
 **Prompt:**
 ```
 Read AGENTS.md and ARCHITECTURE.md. Do Step 6 only.
-- src/channels/whatsapp/send.ts: sendToOwner(text). It is the ONLY place that calls sock.sendMessage. Always prefix "🤖 <BOT_NAME>: ". Send only to the owner chat JID. Rate limit to MAX_REPLIES_PER_HOUR; drop and log if exceeded.
+- src/channels/whatsapp/send.ts: sendToOwner(text). It is the ONLY place that calls sock.sendMessage. Prefix "🤖 <BOT_NAME>: " in self mode; use plain text in separate mode. Send only to the owner chat JID. In separate mode, keep owner-only read receipts and AI typing presence in this file. Rate limit to MAX_REPLIES_PER_HOUR; drop and log if exceeded.
 - Trigger: in self mode a message counts only if it is fromMe and in the owner chat, and it needs the bot name at the start (case-insensitive, optional "@", followed by space/comma/colon/end) or "@<BOT_NAME>" as a whole word anywhere. Strip the trigger before handling. In separate mode, handle any inbound text from the verified owner; a trigger is optional and may be stripped. Ignore Maya's own outgoing messages using `key.fromMe`.
 - src/features/commands.ts (no AI): "help"/"?", "task"/"tasks"/"list" (open tasks with id, subject, title, due in TIMEZONE), "done <id>"/"complete <id>". Unknown text → pass to ask (stub that replies "coming in Step 8" for now).
 Commit when done. Do NOT open a PR.
@@ -182,7 +182,7 @@ Commit when done. Do NOT open a PR.
 Read AGENTS.md. Do Step 8 only.
 - src/features/ask.ts: build context = open tasks + tasks due in the next 14 days + the last ASK_CONTEXT_MESSAGES group messages; current time and TIMEZONE. Include a short "About you" section with the bot name, current abilities, planned reminders, commands, and visibility limits. Ask the AI to answer short and clear in the user's language, greet naturally, and say it doesn't know when a task or deadline lacks supporting data.
 - Replace the Step 6 stub with this.
-- Send "🤖 <BOT_NAME>: thinking..." only if the answer takes more than 3 seconds.
+- Send no "thinking..." text. In separate mode, show owner-chat `composing` presence while Gemini works, then `paused`.
 Commit when done. Do NOT open a PR.
 ```
 

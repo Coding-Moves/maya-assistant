@@ -1,5 +1,5 @@
 import { generateText } from '../ai/gemini.js';
-import { sendToOwner } from '../channels/whatsapp/send.js';
+import { sendToOwner, withOwnerTyping } from '../channels/whatsapp/send.js';
 import { config } from '../config/env.js';
 import { recentMessages } from '../db/repos/messages.js';
 import { openTasks, tasksDueBetween } from '../db/repos/tasks.js';
@@ -7,10 +7,8 @@ import { logger } from '../utils/logger.js';
 import { formatInTimezone } from '../utils/time.js';
 
 type GenerateAnswer = (prompt: string) => Promise<string>;
-type SendReply = (
-  text: string,
-  kind?: 'reply' | 'progress',
-) => Promise<boolean>;
+type SendReply = (text: string) => Promise<boolean>;
+type WithTyping = <T>(work: () => Promise<T>) => Promise<T>;
 
 export function askPrompt(question: string, now = new Date()): string {
   const dueEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
@@ -62,19 +60,12 @@ export async function ask(
   question: string,
   generate: GenerateAnswer = generateText,
   send: SendReply = sendToOwner,
-  thinkingDelayMs = 3000,
+  typing: WithTyping = withOwnerTyping,
 ): Promise<void> {
   const prompt = askPrompt(question);
-  let finished = false;
-  let thinking: Promise<boolean> | null = null;
-  const timer = setTimeout(() => {
-    if (!finished)
-      thinking = send('thinking...', 'progress').catch(() => false);
-  }, thinkingDelayMs);
-
   let answer: string;
   try {
-    answer = await generate(prompt);
+    answer = await typing(() => generate(prompt));
   } catch (error) {
     logger.error(
       { errorType: error instanceof Error ? error.name : 'unknown' },
@@ -82,10 +73,6 @@ export async function ask(
     );
     logger.debug({ err: error }, 'Question failure details');
     answer = 'I could not answer right now. Please try again later.';
-  } finally {
-    finished = true;
-    clearTimeout(timer);
-    if (thinking) await thinking;
   }
   await send(answer);
 }

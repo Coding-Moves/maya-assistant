@@ -88,7 +88,7 @@ Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart
 | `maya help` or `maya ?` | Shows what she can do |
 | `buy milk` | Ignored, it's your note |
 
-**On a second number:** save it as "Maya" in your contacts and message her directly. You can write `done 4`, `hi`, or ask a question without using her name first. Messages from other people are ignored.
+**On a second number:** save it as "Maya" in your contacts and message her directly. You can write `done 4`, `hi`, or ask a question without using her name first. She replies in plain text, shows typing while answering with AI, and marks your message read when she starts replying. Messages from other people are ignored.
 
 Don't like the name? Set `BOT_NAME` in `.env` to anything you want.
 

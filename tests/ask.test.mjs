@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 
 process.env.GEMINI_API_KEY = 'test';
+process.env.BOT_MODE = 'self';
 process.env.DATABASE_PATH = ':memory:';
 process.env.GROUP_ALLOWLIST = 'allowed@g.us';
 
@@ -14,7 +15,7 @@ const { ask } = await import('../src/features/ask.ts');
 migrate();
 after(() => db.close());
 
-test('answers from allowlisted context without an early thinking message', async () => {
+test('answers from allowlisted context without a progress message', async () => {
   createTask({
     type: 'quiz',
     title: 'Math quiz',
@@ -44,7 +45,7 @@ test('answers from allowlisted context without an early thinking message', async
       replies.push(value);
       return true;
     },
-    50,
+    async (work) => work(),
   );
   assert.deepEqual(replies, ['Math quiz is due soon.']);
   assert.match(prompt, /Math quiz/);
@@ -61,22 +62,31 @@ test('answers from allowlisted context without an early thinking message', async
   );
 });
 
-test('cancels the thinking timer after a fast answer', async () => {
-  const replies = [];
+test('wraps an AI answer in typing presence and sends only the answer', async () => {
+  const events = [];
   await ask(
     'Hello',
-    async () => 'Hi!',
+    async () => {
+      events.push('generate');
+      return 'Hi!';
+    },
     async (value) => {
-      replies.push(value);
+      events.push(value);
       return true;
     },
-    10,
+    async (work) => {
+      events.push('composing');
+      try {
+        return await work();
+      } finally {
+        events.push('paused');
+      }
+    },
   );
-  await new Promise((resolve) => setTimeout(resolve, 25));
-  assert.deepEqual(replies, ['Hi!']);
+  assert.deepEqual(events, ['composing', 'generate', 'paused', 'Hi!']);
 });
 
-test('sends thinking before a slow answer', async () => {
+test('never sends a thinking message for a slow answer', async () => {
   const replies = [];
   await ask(
     'What is due?',
@@ -88,25 +98,32 @@ test('sends thinking before a slow answer', async () => {
       replies.push(value);
       return true;
     },
-    5,
-  );
-  assert.deepEqual(replies, ['thinking...', 'Math quiz.']);
-});
-
-test('marks thinking as progress so it can be skipped at low quota', async () => {
-  const replies = [];
-  await ask(
-    'What is due?',
-    async () => {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-      return 'Math quiz.';
-    },
-    async (text, kind) => {
-      if (kind === 'progress') return false;
-      replies.push(text);
-      return true;
-    },
-    5,
+    async (work) => work(),
   );
   assert.deepEqual(replies, ['Math quiz.']);
+});
+
+test('pauses typing and sends an error reply after AI failure', async () => {
+  const events = [];
+  await ask(
+    'What is due?',
+    async () => { throw new Error('API unavailable'); },
+    async (text) => {
+      events.push(text);
+      return true;
+    },
+    async (work) => {
+      events.push('composing');
+      try {
+        return await work();
+      } finally {
+        events.push('paused');
+      }
+    },
+  );
+  assert.deepEqual(events, [
+    'composing',
+    'paused',
+    'I could not answer right now. Please try again later.',
+  ]);
 });
