@@ -53,7 +53,7 @@ test('answers from allowlisted context without an early thinking message', async
   assert.match(prompt, /dueNext14Days/);
   assert.match(prompt, /About you:/);
   assert.match(prompt, /allowlisted WhatsApp groups/);
-  assert.match(prompt, /reminders and a weekly plan are planned for Step 9/);
+  assert.match(prompt, /reminders and a weekly plan when the app is running/);
   assert.match(prompt, /Respond naturally to greetings and small talk/);
   assert.match(
     prompt,

@@ -2,7 +2,7 @@
 
 **Your personal WhatsApp assistant that never misses a deadline.**
 
-**Development status:** WhatsApp group ingest, AI task extraction, owner commands, and Q&A are implemented through Step 8. Scheduled reminders and weekly plans are planned for Step 9 in [ROADMAP.md](ROADMAP.md).
+**Development status:** WhatsApp group ingest, AI task extraction, owner commands, Q&A, scheduled reminders, and weekly plans are implemented through Step 9. Phase 1 hardening remains in [ROADMAP.md](ROADMAP.md).
 
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
@@ -19,7 +19,7 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 
 - 👂 **Listens** only to the groups you pick. She never posts in them.
 - 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it.
-- ⏰ **Planned for Step 9:** morning and evening reminders, plus a weekly plan.
+- ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
 - 💬 **Answers questions** when you message her. If you don't call her name, she ignores you, so your notes stay notes.
 - 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; selected group text is sent to Gemini for analysis.
 - 💸 **API costs depend on your Gemini plan and usage.** Check your model's pricing and set a budget alert before leaving Maya running.
@@ -29,7 +29,7 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 1. Maya connects to WhatsApp as a **linked device**, the same way WhatsApp Web does.
 2. New text messages and media captions in your chosen groups are saved on your computer.
 3. Every few minutes, she sends the new messages to an AI (Google Gemini), which pulls out tasks and dates.
-4. She answers **only you**, in your own chat. Scheduled reminders arrive in Step 9.
+4. She sends reminders and answers **only to you**, in your own chat.
 
 Want the technical details? See [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -72,7 +72,7 @@ Stop `npm run dev` before listing your group IDs; both commands use the same Wha
 npm run list-groups
 ```
 
-Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart with `npm run dev`. Maya saves new text and captions from those groups, extracts tasks every `EXTRACT_INTERVAL_MIN` minutes, and answers your commands and questions. Scheduled reminders arrive in Step 9.
+Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart with `npm run dev`. Maya saves new text and captions from those groups, extracts tasks every `EXTRACT_INTERVAL_MIN` minutes, answers your commands and questions, and sends scheduled reminders while running.
 
 ## Talking to Maya
 
@@ -136,4 +136,4 @@ MIT. Use it, change it, share it.
 
 ## Coding Moves Lab
 
-Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). The implemented group-ingest and task features are still in development; scheduled reminders remain planned.
+Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). Group ingest, task extraction, and scheduled reminders are implemented; Phase 1 hardening remains.

@@ -130,27 +130,3 @@ export async function extractOnce(
   }
   await notifyFailures(send);
 }
-
-export function startExtractionInterval(): () => void {
-  let running = false;
-  const run = async () => {
-    if (running) return;
-    running = true;
-    try {
-      await extractOnce();
-    } catch (error) {
-      logger.error(
-        { errorType: error instanceof Error ? error.name : 'unknown' },
-        'Extraction run failed',
-      );
-      logger.debug({ err: error }, 'Extraction run failure details');
-    } finally {
-      running = false;
-    }
-  };
-  const timer = setInterval(
-    () => void run(),
-    config.EXTRACT_INTERVAL_MIN * 60_000,
-  );
-  return () => clearInterval(timer);
-}
