@@ -8,10 +8,8 @@ If you're in a busy WhatsApp group (a class, a course, a team, a community), you
 
 Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose, picks out the things that matter, and reminds you before it's too late. You can also just ask her:
 
-> **You:** @maya anything due this week?
-> **Maya:** 🤖 Maya: You have 2 things coming up:
-> 1. **MTH501 quiz**, Tuesday 9 AM (moved from Monday)
-> 2. **CS101 assignment 3**, due Thursday 11:59 PM
+> **You:** Anything due this week?
+> **Maya:** Your MTH501 quiz is Tuesday at 9 AM, and CS101 assignment 3 is due Thursday at 11:59 PM. You've got this 🌿
 
 ---
 
@@ -52,7 +50,7 @@ Want the technical details? See [ARCHITECTURE.md](ARCHITECTURE.md).
 You'll need **Node.js 22 or newer** (we develop on Node 24), a **Gemini API key** from [Google AI Studio](https://aistudio.google.com/), and your **phone** with WhatsApp.
 
 ```bash
-git clone https://github.com/Muawiya-contact/maya-assistant.git
+git clone https://github.com/Coding-Moves/maya-assistant.git
 cd maya-assistant
 npm install
 cp .env.example .env
