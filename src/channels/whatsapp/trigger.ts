@@ -25,7 +25,7 @@ export function ownerInput(
 
   const mention = mentionTrigger.exec(input);
   if (!mention) return config.BOT_MODE === 'separate' ? input : null;
-  const start = mention.index + mention[1].length;
+  const start = mention.index + (mention[1] ?? '').length;
   const before = input.slice(0, start).replace(/[\s,:([\]]+$/, '');
   const after = input
     .slice(start + 1 + config.BOT_NAME.length)

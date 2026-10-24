@@ -6,6 +6,7 @@ export default tseslint.config(js.configs.recommended, tseslint.configs.recommen
   languageOptions: {
     globals: {
       process: 'readonly',
+      console: 'readonly',
       setTimeout: 'readonly',
       setImmediate: 'readonly',
     },

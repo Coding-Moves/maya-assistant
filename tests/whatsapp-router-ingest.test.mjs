@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { after, test } from 'node:test';
 
 process.env.GEMINI_API_KEY = 'test';
+process.env.BOT_MODE = 'self';
 process.env.DATABASE_PATH = ':memory:';
 process.env.GROUP_ALLOWLIST = 'allowed@g.us';
 
