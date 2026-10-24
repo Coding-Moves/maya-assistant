@@ -145,7 +145,7 @@ Commit when done. Do NOT open a PR.
 ```
 Read AGENTS.md and ARCHITECTURE.md. Do Step 6 only.
 - src/channels/whatsapp/send.ts: sendToOwner(text). It is the ONLY place that calls sock.sendMessage. Always prefix "🤖 <BOT_NAME>: ". Send only to the owner chat JID. Rate limit to MAX_REPLIES_PER_HOUR; drop and log if exceeded.
-- Trigger: in self mode a message counts only if it is fromMe and in the owner chat; in separate mode it must be inbound from the owner. In either mode, require the bot name at the start (case-insensitive, optional "@", followed by space/comma/colon/end) or "@<BOT_NAME>" as a whole word anywhere. Strip the trigger before handling; ignore messages without it and bot-prefixed replies.
+- Trigger: in self mode a message counts only if it is fromMe and in the owner chat, and it needs the bot name at the start (case-insensitive, optional "@", followed by space/comma/colon/end) or "@<BOT_NAME>" as a whole word anywhere. Strip the trigger before handling. In separate mode, handle any inbound text from the verified owner; a trigger is optional and may be stripped. Ignore Maya's own outgoing messages using `key.fromMe`.
 - src/features/commands.ts (no AI): "help"/"?", "task"/"tasks"/"list" (open tasks with id, subject, title, due in TIMEZONE), "done <id>"/"complete <id>". Unknown text → pass to ask (stub that replies "coming in Step 8" for now).
 Commit when done. Do NOT open a PR.
 ```

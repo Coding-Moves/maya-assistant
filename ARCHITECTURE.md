@@ -16,7 +16,7 @@ flowchart TD
     G[WhatsApp groups] -->|read only| W[Baileys socket]
     W --> R{Router}
     R -->|allowlisted group| I[Ingest]
-    R -->|owner chat + trigger word| Q[Ask / Commands]
+    R -->|verified owner chat| Q[Ask / Commands]
     R -->|anything else| X[Ignore]
     I --> DB[(SQLite: messages)]
     DB --> E[Extractor job, every N min]
@@ -188,7 +188,7 @@ If validation or extraction fails, log it without message text, increment `extra
 - **`self` mode:** the owner is the account itself. Owner chat = self-chat. Detect it by matching `remoteJid` (or its alternate JID, when present) against *both* available `sock.user.id` (PN) and `sock.user.lid` (LID), normalized with `jidNormalizedUser`, and require `fromMe === true`.
 - **`separate` mode:** the owner is `OWNER_JID` (match its PN or resolved LID, including the alternate JID when present) and the message must be inbound. If the LID mapping is unavailable, fail closed for an unrecognized LID rather than treating any direct chat as the owner.
 
-In both modes, an owner message needs a trigger: start with the bot name (case-insensitive, optional `@`, followed by space, comma, colon, or end), or include `@<BOT_NAME>` as a whole word anywhere. Strip the trigger before handling; ignore other messages and bot-prefixed replies.
+In self mode, an owner message needs a trigger: start with the bot name (case-insensitive, optional `@`, followed by space, comma, colon, or end), or include `@<BOT_NAME>` as a whole word anywhere. Strip the trigger before handling; ignore other messages and bot-prefixed replies. In separate mode, handle any inbound text from the verified owner without requiring a trigger; strip an optional trigger for compatibility. Ignore Maya's own outgoing messages using `key.fromMe`.
 
 Baileys 7 uses LIDs (`...@lid`) by default. `jidNormalizedUser` strips device suffixes but does not map PN to LID; use `sock.signalRepository.lidMapping.getLIDForPN` where needed. Never assume a JID is a phone number.
 

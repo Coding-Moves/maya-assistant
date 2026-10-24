@@ -47,7 +47,9 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
       const chatId = message.key.remoteJid;
       if (!chatId) continue;
       const text = parseMessageText(message.message);
-      if (!text || text.startsWith(botPrefix)) continue;
+      if (!text) continue;
+      if (config.BOT_MODE === 'separate' && message.key.fromMe === true) continue;
+      if (config.BOT_MODE === 'self' && text.startsWith(botPrefix)) continue;
 
       if (allowedGroups.has(chatId)) {
         try {

@@ -88,7 +88,7 @@ Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart
 | `maya help` or `maya ?` | Shows what she can do |
 | `buy milk` | Ignored, it's your note |
 
-**On a second number:** save it as "Maya" in your contacts and include her name or `@maya` in messages you want her to handle.
+**On a second number:** save it as "Maya" in your contacts and message her directly. You can write `done 4`, `hi`, or ask a question without using her name first. Messages from other people are ignored.
 
 Don't like the name? Set `BOT_NAME` in `.env` to anything you want.
 
@@ -98,7 +98,7 @@ Everything lives in `.env`. The main ones:
 
 | Setting | What it does | Example |
 |---|---|---|
-| `BOT_NAME` | Her name, and the word that wakes her up | `Maya` |
+| `BOT_NAME` | Her name, and the word that wakes her up in self mode | `Maya` |
 | `BOT_MODE` | `self` = your own number, `separate` = second SIM | `self` |
 | `GROUP_ALLOWLIST` | Which groups she reads | `1203...@g.us` |
 | `TIMEZONE` | Your timezone for reminders | `Asia/Karachi` |
@@ -116,7 +116,7 @@ The full list is in [`.env.example`](.env.example).
 3. Delete the `auth_info/` folder.
 4. Run `npm run dev` and scan the QR **with the new phone**.
 
-In either mode, include Maya's name or `@maya` in messages you want her to handle. Messages without a trigger are ignored.
+In self mode, include Maya's name or `@maya` in messages you want her to handle. On a separate number, direct messages from the owner need no trigger.
 
 ## What's coming
 
