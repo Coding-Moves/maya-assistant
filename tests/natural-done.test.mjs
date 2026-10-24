@@ -35,14 +35,18 @@ test('ambiguous Roman Urdu completion asks by name, then accepts a name', async 
   const quiz = createTask({ type: 'quiz', title: 'Math quiz' });
   createTask({ type: 'assignment', title: 'Essay' });
   await handleOwnerText('ho gaya', send, ask);
-  assert.match(replies.at(-1), /Which one did you finish/);
+  assert.match(replies.at(-1), /Kaunsa task complete hua/);
   assert.match(replies.at(-1), /Math quiz/);
   assert.match(replies.at(-1), /Essay/);
   assert.doesNotMatch(replies.at(-1), /#\d|done \d/);
+  await handleOwnerText('Is it Math quiz?', send, ask);
+  assert.equal(openTasks().some((task) => task.id === quiz), true);
+  assert.equal(questions.at(-1), 'Is it Math quiz?');
+  await handleOwnerText('ho gaya', send, ask);
   await handleOwnerText('Math quiz', send, ask);
-  assert.match(replies.at(-1), /ticked off Math quiz/);
+  assert.match(replies.at(-1), /Math quiz complete kar diya/);
   assert.equal(openTasks().some((task) => task.id === quiz), false);
-  assert.deepEqual(questions, []);
+  assert.deepEqual(questions, ['Is it Math quiz?']);
 });
 
 test('recently discussed task wins when several tasks are open', async () => {
@@ -50,7 +54,7 @@ test('recently discussed task wins when several tasks are open', async () => {
   createTask({ type: 'quiz', title: 'Science quiz' });
   await askQuestion('What about Essay?', async () => 'Your Essay is due tomorrow.', send, async (work) => work());
   await handleOwnerText('ہو گیا', send, ask);
-  assert.match(replies.at(-1), /ticked off Essay/);
+  assert.match(replies.at(-1), /Essay مکمل کر دیا/);
   assert.deepEqual(openTasks().map((task) => task.title), ['Science quiz']);
 });
 
@@ -60,5 +64,5 @@ test('done number still uses the explicit command and small talk reaches ask', a
   await handleOwnerText(`done ${id}`, send, ask);
   assert.match(replies.at(-1), /ticked off Physics quiz/);
   await handleOwnerText('hi', send, ask);
-  assert.deepEqual(questions, ['hi']);
+  assert.equal(questions.at(-1), 'hi');
 });
