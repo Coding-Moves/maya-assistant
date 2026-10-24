@@ -10,7 +10,7 @@ process.env.TIMEZONE = 'Asia/Karachi';
 
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
-const { createTask, openTasks } = await import('../src/db/repos/tasks.ts');
+const { createTask, markDone, openTasks } = await import('../src/db/repos/tasks.ts');
 const { handleOwnerText } = await import('../src/features/commands.ts');
 const { runDigest } = await import('../src/features/digests.ts');
 const { runWeeklyPlan } = await import('../src/features/weeklyPlan.ts');
@@ -30,6 +30,17 @@ test('separate commands sound friendly and name the completed task', async () =>
   assert.match(replies[1], /Chapter 1 quiz/);
   assert.match(replies[2], /ticked off Chapter 1 quiz/);
   assert.equal(openTasks().some((task) => task.id === id), false);
+});
+
+test('two tasks are described in a short sentence', async () => {
+  const first = createTask({ type: 'quiz', title: 'Math quiz' });
+  const second = createTask({ type: 'assignment', title: 'Essay' });
+  const replies = [];
+  await handleOwnerText('tasks', async (text) => { replies.push(text); return true; });
+  assert.match(replies[0], /Math quiz and Essay coming up/);
+  assert.doesNotMatch(replies[0], /•|\n/);
+  markDone(first);
+  markDone(second);
 });
 
 test('separate digest reads like a caring reminder', async () => {

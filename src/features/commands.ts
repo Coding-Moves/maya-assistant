@@ -41,6 +41,8 @@ export async function handleOwnerText(
           ? "You're all caught up. No open tasks right now 🌿"
           : tasks.length === 1
             ? `You have ${tasks[0]!.title}${tasks[0]!.dueAt ? ` due ${formatInTimezone(new Date(tasks[0]!.dueAt))}` : ' on your list'}. To tick it off, send done ${tasks[0]!.id}.`
+            : tasks.length === 2
+              ? `You have ${tasks.map((task) => `${task.title}${task.dueAt ? ` due ${formatInTimezone(new Date(task.dueAt))}` : ''}`).join(' and ')} coming up. To tick one off, send done ${tasks[0]!.id} or done ${tasks[1]!.id}.`
             : `Here's what you have coming up:\n${tasks.map((task) => `• ${task.title}${task.dueAt ? ` — ${formatInTimezone(new Date(task.dueAt))}` : ''} (done ${task.id})`).join('\n')}`
         : tasks.length === 0
           ? 'No open tasks.'
