@@ -28,9 +28,22 @@ test('separate mode handles only inbound owner chat and ignores its own outgoing
     }),
   );
   const ev = new EventEmitter();
-  const detach = attachWhatsAppRouter({ ev });
+  let finishDelayedMapping;
+  const delayedMapping = new Promise((resolve) => { finishDelayedMapping = resolve; });
+  const detach = attachWhatsAppRouter({
+    ev,
+    signalRepository: {
+      lidMapping: {
+        getPNForLID: async (lid) => lid === '654@lid'
+          ? '123@s.whatsapp.net'
+          : lid === '765@lid'
+            ? delayedMapping
+            : '999@s.whatsapp.net',
+      },
+    },
+  });
   try {
-    const ids = [1, 2, 3].map((index) =>
+    const ids = [1, 2, 3, 4, 5].map((index) =>
       createTask({ type: 'quiz', title: `Quiz ${index}` }),
     );
     const message = (id, remoteJid, text, fromMe) => ({
@@ -54,6 +67,26 @@ test('separate mode handles only inbound owner chat and ignores its own outgoing
       db.prepare('SELECT text FROM messages ORDER BY id').all(),
       [{ text: 'Quiz on Monday' }],
     );
+
+    ev.emit('messages.upsert', {
+      type: 'notify',
+      messages: [
+        message('late-owner', '654@lid', `done ${ids[3]}`, false),
+        message('other-lid', '999@lid', `done ${ids[4]}`, false),
+      ],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(openTasks().map(({ id }) => id), [ids[1], ids[2], ids[4]]);
+
+    const delayedId = createTask({ type: 'quiz', title: 'Quiz after disconnect' });
+    ev.emit('messages.upsert', {
+      type: 'notify',
+      messages: [message('late-result', '765@lid', `done ${delayedId}`, false)],
+    });
+    detach();
+    finishDelayedMapping('123@s.whatsapp.net');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(openTasks().some((task) => task.id === delayedId), true);
   } finally {
     detach();
     clearOwnerIdentity();
