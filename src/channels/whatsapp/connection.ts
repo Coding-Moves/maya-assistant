@@ -80,11 +80,14 @@ export function connectToWhatsApp(): Promise<void> {
 }
 
 async function startConnection(): Promise<void> {
+  let created: Awaited<ReturnType<typeof createWhatsAppSocket>> | null = null;
   try {
     releaseAuthSessionLock ??= acquireAuthSessionLock();
     const { attachWhatsAppRouter } = await import('./router.js');
-    const { socket: nextSocket, flushCredentials } = await createWhatsAppSocket();
+    created = await createWhatsAppSocket();
+    const { socket: nextSocket, flushCredentials } = created;
     if (stopping) {
+      created = null;
       try {
         await nextSocket.end(undefined);
       } finally {
@@ -146,12 +149,22 @@ async function startConnection(): Promise<void> {
   } catch (error) {
     socket = null;
     socketOpen = false;
+    detachRouter?.();
+    detachRouter = null;
+    flushActiveCredentials = null;
     clearOwnerIdentity();
     logger.error(
       { errorType: error instanceof Error ? error.name : 'unknown' },
       'Could not start WhatsApp connection',
     );
     logger.debug({ err: error }, 'WhatsApp connection failure details');
+    if (created) {
+      try {
+        await created.socket.end(undefined);
+      } finally {
+        await created.flushCredentials();
+      }
+    }
     if (stopping || error instanceof AuthSessionInUseError) throw error;
     scheduleReconnect();
   }
