@@ -1,9 +1,5 @@
 import { config } from './config/env.js';
-import {
-  connectToWhatsApp,
-  pauseWhatsApp,
-  stopWhatsApp,
-} from './channels/whatsapp/connection.js';
+import { startWhatsAppSource, whatsAppSource } from './sources/whatsapp.js';
 import { db } from './db/client.js';
 import { migrate } from './db/migrate.js';
 import { logger } from './utils/logger.js';
@@ -35,7 +31,7 @@ async function shutDown(): Promise<void> {
     await closeStep('scheduler', async () => {
       await stopJobs?.();
     });
-    await closeStep('whatsapp', stopWhatsApp);
+    await closeStep('whatsapp', whatsAppSource.stop);
     await closeStep('database', () => {
       if (db.open) db.close();
     });
@@ -54,7 +50,7 @@ async function shutDown(): Promise<void> {
 
 function requestShutdown(exitCode: number): void {
   if (exitCode > Number(process.exitCode ?? 0)) process.exitCode = exitCode;
-  pauseWhatsApp();
+  whatsAppSource.pause();
   shutdownWork ??= shutDown();
 }
 
@@ -76,5 +72,5 @@ process.on('uncaughtException', (error: Error) => {
 });
 migrate();
 logger.info({ botName: config.BOT_NAME }, 'Maya starting');
-void connectToWhatsApp();
+void startWhatsAppSource();
 stopJobs = startJobs();

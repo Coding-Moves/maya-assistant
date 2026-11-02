@@ -5,6 +5,9 @@ import { z } from 'zod';
 const positiveInteger = (defaultValue: number) =>
   z.coerce.number().int().positive().default(defaultValue);
 
+const booleanFlag = (defaultValue: 'true' | 'false') =>
+  z.enum(['true', 'false']).default(defaultValue).transform((value) => value === 'true');
+
 const cronExpression = (defaultValue: string) =>
   z.string().trim().refine(cron.validate, 'must be a valid cron expression').default(defaultValue);
 
@@ -47,6 +50,14 @@ const envSchema = z
     GEMINI_MODEL: z.string().trim().min(1).default('gemini-3.5-flash'),
     EXTRACT_BATCH_SIZE: positiveInteger(50),
     ASK_CONTEXT_MESSAGES: positiveInteger(100),
+    MEDIA_ENABLED: booleanFlag('false'),
+    MEDIA_MAX_BYTES: positiveInteger(5_000_000),
+    MEDIA_BATCH_SIZE: positiveInteger(3),
+    CALENDAR_SYNC: booleanFlag('false'),
+    GOOGLE_CLIENT_ID: z.string().trim().default(''),
+    GOOGLE_CLIENT_SECRET: z.string().trim().default(''),
+    GOOGLE_REFRESH_TOKEN: z.string().trim().default(''),
+    GOOGLE_CALENDAR_ID: z.string().trim().min(1).default('primary'),
     MAX_REPLIES_PER_HOUR: positiveInteger(20),
     DATABASE_PATH: z.string().trim().min(1).default('./data/maya.db'),
     AUTH_DIR: z.string().trim().min(1).default('./auth_info'),
@@ -59,6 +70,9 @@ const envSchema = z
         path: ['OWNER_JID'],
         message: 'is required when BOT_MODE=separate',
       });
+    }
+    if (value.CALENDAR_SYNC && (!value.GOOGLE_CLIENT_ID || !value.GOOGLE_CLIENT_SECRET || !value.GOOGLE_REFRESH_TOKEN)) {
+      context.addIssue({ code: 'custom', path: ['CALENDAR_SYNC'], message: 'requires GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN' });
     }
   });
 

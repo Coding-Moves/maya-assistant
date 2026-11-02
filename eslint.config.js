@@ -9,6 +9,12 @@ export default tseslint.config(js.configs.recommended, tseslint.configs.recommen
       console: 'readonly',
       setTimeout: 'readonly',
       setImmediate: 'readonly',
+      Response: 'readonly',
     },
+  },
+}, {
+  files: ['ecosystem.config.cjs'],
+  languageOptions: {
+    globals: { module: 'readonly', __dirname: 'readonly' },
   },
 });

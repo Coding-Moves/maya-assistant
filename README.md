@@ -2,7 +2,7 @@
 
 **Your personal WhatsApp assistant that never misses a deadline.**
 
-**Development status:** Phase 1 is implemented through Step 10, including graceful shutdown and manual SQLite backups. The one-day reminder check is still a manual validation step in [ROADMAP.md](ROADMAP.md).
+**Development status:** Core and Phases 2–5 are implemented. Media reading and Google Calendar require opt-in setup; VU Classic To Do uses a manual import. Live checks for Calendar and imported VU items remain with the owner.
 
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
@@ -16,16 +16,18 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 ## What Maya can do
 
 - 👂 **Listens** only to the groups you pick. She never posts in them.
-- 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it.
+- 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it. Optional image and PDF reading covers supported media in the same chosen groups.
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
 - 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
+- 👀 **Views only your WhatsApp Status** in separate mode and sends you a short private comment when she can read its text, caption, photo, or supported video. She does not store Status content or turn it into tasks, and ignores other people's Status updates. Photo and video comments send the media to Gemini and use the configured `MEDIA_MAX_BYTES` limit, independently of `MEDIA_ENABLED` (which controls group media). Unsupported or oversized media without a caption is viewed without a comment.
+- 📚 **Imports VU Classic To Do deadlines** for quizzes and assignments from a CSV you provide; no VU login is stored.
 - 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; selected group text is sent to Gemini for analysis.
 - 💸 **API costs depend on your Gemini plan and usage.** Check your model's pricing and set a budget alert before leaving Maya running.
 
 ## How it works, in plain words
 
 1. Maya connects to WhatsApp as a **linked device**, the same way WhatsApp Web does.
-2. New text messages and media captions in your chosen groups are saved on your computer.
+2. New text messages and media captions in your chosen groups are saved locally. When media reading is enabled, supported images and PDFs are sent to Gemini, and their extracted text is saved instead of the file.
 3. Every few minutes, she sends the new messages to an AI (Google Gemini), which pulls out tasks and dates.
 4. She sends reminders and answers **only to you**, in your own chat.
 
@@ -39,7 +41,7 @@ Want the technical details? See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 👉 **The safest setup is a second phone number** (a cheap SIM) just for Maya. You can start with your own number and switch later. It takes two minutes.
 
-**Respect other people's privacy.** Messages from your group are sent to Google's AI to be understood. Only use Maya on groups where that's okay, and never share the database file.
+**Respect other people's privacy.** Messages from your group, and images/PDFs when enabled, are sent to Google's AI to be understood. Only use Maya on groups where that's okay, and never share the database file.
 
 **This is a personal tool,** not for spam, marketing, or bulk messaging.
 
@@ -72,7 +74,15 @@ npm run list-groups
 
 Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart with `npm run dev`. Maya saves new text and captions from those groups, extracts tasks every `EXTRACT_INTERVAL_MIN` minutes, answers your commands and questions, and sends scheduled reminders while running.
 
-To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages and tasks, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backups are planned for Phase 2.
+To read JPEG, PNG, WebP, and PDF announcements, set `MEDIA_ENABLED=true`. Maya handles at most `MEDIA_BATCH_SIZE` files per extraction run and refuses files above `MEDIA_MAX_BYTES` (default 5 MB). Large files with a caption still contribute that caption. Media reading uses Gemini and can increase API usage. A failed item is retried three times, then quarantined and reported to you.
+
+Google Calendar sync is optional. To enable it, follow [the Calendar setup guide](docs/CALENDAR.md). Dated open tasks become Calendar events; changing a task updates its event, and completing or cancelling it removes the event. Sync runs with the extraction interval and retries failed requests. Task titles and details are sent to Google when enabled.
+
+VU students can import only assignment and quiz deadlines from Classic To Do. Follow [the VU import guide](docs/VU-CLASSIC-TODO.md). Maya does not log in to VU, poll the portal, or read bell/notice-board items.
+
+For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage.
+
+To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages and tasks, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backup automation is deferred.
 
 ## Talking to Maya
 
@@ -109,6 +119,8 @@ Everything lives in `.env`. The main ones:
 | `EVENING_DIGEST_CRON` | When to send "due tomorrow" | `0 20 * * *` |
 | `WEEKLY_PLAN_CRON` | When to send the weekly plan | `0 20 * * 5` |
 | `GEMINI_MODEL` | Which AI model to use | `gemini-3.5-flash` |
+| `MEDIA_ENABLED` | Read supported group images and PDFs with Gemini | `false` |
+| `CALENDAR_SYNC` | Sync dated open tasks with Google Calendar | `false` |
 
 The full list is in [`.env.example`](.env.example).
 
@@ -123,7 +135,7 @@ In self mode, include Maya's name or `@maya` in messages you want her to handle.
 
 ## What's coming
 
-Maya is young. Next up: reading images and PDF announcements, syncing deadlines to Google Calendar, connecting to university LMS portals, and running 24/7 on a free server. See [ROADMAP.md](ROADMAP.md).
+Maya is still experimental. See [ROADMAP.md](ROADMAP.md) for what is implemented and what still needs a manual live check.
 
 ## Use it, fork it, make it yours
 
@@ -139,4 +151,4 @@ MIT. Use it, change it, share it.
 
 ## Coding Moves Lab
 
-Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). Phase 1 features and hardening are implemented; the one-day reminder check remains.
+Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). The one-day reminder check and optional integrations need the owner's live validation.

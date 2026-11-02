@@ -1,11 +1,13 @@
-import type { BaileysEventMap, GroupMetadata, WASocket } from 'baileys';
+import { isJidBroadcast, isJidStatusBroadcast, type BaileysEventMap, type GroupMetadata, type WAMessage, type WAMessageKey, type WASocket } from 'baileys';
 import { config } from '../../config/env.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
+import { enqueueGroupMedia } from '../../features/media.js';
 import { handleOwnerText } from '../../features/commands.js';
+import { commentOnOwnerStatus } from '../../features/status.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat, verifyOwnerLid } from './identity.js';
 import { parseMessageText } from './parse.js';
-import { markOwnerMessageRead } from './send.js';
+import { markOwnerMessageRead, markOwnerStatusRead } from './send.js';
 import { ownerInput } from './trigger.js';
 
 const allowedGroups = new Set(config.GROUP_ALLOWLIST);
@@ -16,8 +18,16 @@ export async function waitForOwnerReplies(): Promise<void> {
   await Promise.allSettled(pendingOwnerReplies);
 }
 
-export function attachWhatsAppRouter(sock: WASocket): () => void {
+export type GroupTextHandler = (message: WAMessage, text: string, chatName: string | null) => void;
+
+export function attachWhatsAppRouter(
+  sock: WASocket,
+  onGroupText: GroupTextHandler = ingestGroupMessage,
+  viewOwnerStatus: (key: WAMessageKey) => Promise<void> = markOwnerStatusRead,
+  replyToOwnerStatus: (message: WAMessage, sock: WASocket) => Promise<void> = commentOnOwnerStatus,
+): () => void {
   let active = true;
+  const handledStatusIds = new Set<string>();
   const groupNames = new Map<string, string>();
   const rememberGroup = (group: Partial<GroupMetadata>) => {
     if (group.id && allowedGroups.has(group.id) && group.subject) {
@@ -59,6 +69,23 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
     pendingOwnerReplies.add(reply);
     void reply.finally(() => pendingOwnerReplies.delete(reply));
   };
+  const handleStatus = (message: WAMessage) => {
+    const key = message.key;
+    if (!key.id || !key.participant) return;
+    const statusId = `${key.participant}:${key.id}`;
+    if (handledStatusIds.has(statusId)) return;
+    handledStatusIds.add(statusId);
+    if (handledStatusIds.size > 1_000) handledStatusIds.delete(handledStatusIds.values().next().value!);
+    const reply = (async () => {
+      await viewOwnerStatus(key);
+      if (active) await replyToOwnerStatus(message, sock);
+    })().catch((error: unknown) => {
+      logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not handle owner Status');
+      logger.debug({ err: error }, 'Owner Status failure details');
+    });
+    pendingOwnerReplies.add(reply);
+    void reply.finally(() => pendingOwnerReplies.delete(reply));
+  };
   const onMessages = ({
     messages,
     type,
@@ -67,24 +94,38 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
     for (const message of messages) {
       const chatId = message.key.remoteJid;
       if (!chatId) continue;
+      if (isJidStatusBroadcast(chatId)) {
+        const author = message.key.participant;
+        if (config.BOT_MODE === 'separate' && message.key.fromMe === false && author) {
+          if (isOwnerChat(author)) {
+            handleStatus(message);
+          } else {
+            void verifyOwnerLid(sock, author).then((verified) => {
+              if (active && verified) handleStatus(message);
+            }).catch((error: unknown) => {
+              logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not verify Status author');
+            });
+          }
+        }
+        continue;
+      }
+      // Other broadcasts and Status-shaped messages are never direct chats.
+      if (message.broadcast === true || isJidBroadcast(chatId)) continue;
       const text = parseMessageText(message.message);
-      if (!text) continue;
       if (config.BOT_MODE === 'separate' && message.key.fromMe === true)
         continue;
-      if (config.BOT_MODE === 'self' && text.startsWith(botPrefix)) continue;
+      if (config.BOT_MODE === 'self' && text?.startsWith(botPrefix)) continue;
 
       if (allowedGroups.has(chatId)) {
         try {
-          const id = ingestGroupMessage(
+          if (enqueueGroupMedia(message, groupNames.get(chatId) ?? null)) continue;
+          if (!text) continue;
+          onGroupText(
             message,
             text,
             groupNames.get(chatId) ?? null,
           );
-          if (id !== null)
-            logger.debug(
-              { chatId, messageId: message.key.id },
-              'Stored group message',
-            );
+          logger.debug({ chatId, messageId: message.key.id }, 'Received group message');
         } catch (error) {
           logger.error(
             {
@@ -96,9 +137,9 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
           );
           logger.debug({ err: error }, 'Group message ingest failure details');
         }
-      } else if (isOwnerChat(chatId, message.key.remoteJidAlt)) {
+      } else if (text && isOwnerChat(chatId, message.key.remoteJidAlt)) {
         handleOwnerMessage(message, text);
-      } else if (config.BOT_MODE === 'separate' && message.key.fromMe === false) {
+      } else if (text && config.BOT_MODE === 'separate' && message.key.fromMe === false) {
         void verifyOwnerLid(sock, chatId).then((verified) => {
           if (active && verified) handleOwnerMessage(message, text);
         }).catch((error: unknown) => {

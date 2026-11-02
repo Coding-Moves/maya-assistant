@@ -81,7 +81,9 @@ export function getUnprocessed(limit: number): Message[] {
   return db
     .prepare<[number], Message>(
       `SELECT ${messageColumns} FROM messages
-       WHERE processed = 0 ORDER BY sent_at, id LIMIT ?`,
+       WHERE processed = 0 AND NOT EXISTS
+         (SELECT 1 FROM media_jobs WHERE media_jobs.message_id = messages.id)
+       ORDER BY sent_at, id LIMIT ?`,
     )
     .all(checkedLimit(limit));
 }
@@ -163,6 +165,8 @@ export function recentMessages(chatIds: readonly string[], limit: number): Messa
     .prepare<unknown[], Message>(
       `SELECT ${messageColumns} FROM messages
        WHERE chat_id IN (${placeholders(chatIds.length)})
+         AND text <> ''
+         AND NOT EXISTS (SELECT 1 FROM media_jobs WHERE media_jobs.message_id = messages.id)
        ORDER BY sent_at DESC, id DESC LIMIT ?`,
     )
     .all(...chatIds, checkedLimit(limit));

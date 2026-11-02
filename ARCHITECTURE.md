@@ -17,26 +17,35 @@ flowchart TD
     W --> R{Router}
     R -->|allowlisted group| I[Ingest]
     R -->|verified owner chat| Q[Ask / Commands]
+    R -->|verified owner Status| ST[View and comment]
     R -->|anything else| X[Ignore]
     I --> DB[(SQLite: messages)]
+    I --> MQ[(SQLite: media_jobs)]
+    MQ --> MV[Gemini vision, bounded files]
+    MV --> DB
     DB --> E[Extractor job, every N min]
     E --> AI[Gemini, structured JSON]
     AI --> T[(SQLite: tasks)]
     T --> S[Scheduler: morning / evening / weekly]
     T --> Q
     Q --> AI
+    ST --> AI
     S --> O[sendToOwner]
     Q --> O
+    ST --> O
     O -->|owner chat only| W
 ```
 
 ### Key design decisions
 
 - **Batch extraction.** The AI runs on batches of unprocessed messages every `EXTRACT_INTERVAL_MIN` minutes, not on every message. This means fewer API calls, lower cost, and better context (it can see "quiz moved to Monday" right after "quiz on Friday").
+- **Media queue.** Supported images and PDFs from allowlisted groups are stored as bounded, retryable media jobs before text extraction. Pending placeholders never enter task extraction or Q&A. Completed text enters the same `messages` table. The queue stores the WhatsApp media key and metadata, so it needs the same private storage protection as auth data.
+- **Calendar queue.** Task inserts and meaningful changes enqueue a durable calendar job. Event IDs combine a random, persistent database namespace with the task ID using Google-compatible characters, so retries after a crash update the same event without colliding with another installation. A revision counter keeps concurrent changes queued. Calendar sync is off until the owner completes OAuth and enables it.
 - **Update, don't duplicate.** The extractor gets the list of open tasks with each batch, so it can update an existing task (a new date, or cancelled) instead of creating a second one.
 - **One way out.** Only `sendToOwner()` can send messages. This is the main safety rule.
 - **Loop guard.** Self mode keeps the `🤖 <BOT_NAME>:` prefix and ignores it on input. Separate mode sends plain text and ignores Maya's outgoing messages through `key.fromMe`.
-- **Sources are pluggable (later).** WhatsApp is the first source. Future sources (LMS, email) write into the same `messages`/`tasks` tables, so reminders and Q&A work for all of them.
+- **Status isolation.** In separate mode, Maya marks only the verified owner's Status as viewed and sends a short private comment through `sendToOwner()` when it has readable text, a caption, or supported photo/video media. Status content goes to Gemini for that comment only; it is not stored or used for task extraction or future answers. Photo/video downloads are bounded by `MEDIA_MAX_BYTES`. Unsupported or oversized media without a caption is viewed without a comment. Other people's Status and all other broadcasts are ignored. An alternate PN/LID on a broadcast message never makes it an owner chat.
+- **Sources are pluggable.** `Source<T>` owns an input lifecycle and emits normalized items. WhatsApp emits group messages into `messages`; the VU Classic To Do importer emits structured quiz/assignment rows into `tasks` through a source ID mapping. No VU credentials or portal polling are involved.
 
 ## Tech stack
 
@@ -73,6 +82,7 @@ maya-assistant/
 │   │   ├── migrate.ts            # Applies schema on start
 │   │   └── repos/
 │   │       ├── messages.ts       # insert (dedupe), getUnprocessed, quarantine, markProcessed, recent
+│   │       ├── media.ts          # Pending media jobs, completion, and quarantine
 │   │       └── tasks.ts          # upsert, dueBetween, open, markDone, markReminded
 │   ├── ai/
 │   │   ├── gemini.ts             # Client wrapper, retry with backoff on 429/5xx
@@ -80,6 +90,8 @@ maya-assistant/
 │   │   └── schemas.ts            # zod schemas for AI JSON
 │   ├── features/
 │   │   ├── ingest.ts             # Save allowlisted group messages
+│   │   ├── media.ts              # Retryable image/PDF reading before text extraction
+│   │   ├── status.ts             # Bounded owner Status reading and private comments
 │   │   ├── extract.ts            # Batch → AI → upsert tasks → mark processed
 │   │   ├── commands.ts           # No-AI commands: help, tasks, done <id>
 │   │   ├── ask.ts                # Free-form questions answered with AI
@@ -131,6 +143,14 @@ CREATE TABLE IF NOT EXISTS extraction_failures (
   owner_notified_at TEXT               -- NULL until sendToOwner succeeds
 );
 
+CREATE TABLE IF NOT EXISTS media_jobs (
+  message_id    INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+  payload       BLOB NOT NULL,
+  mime_type     TEXT NOT NULL,
+  caption       TEXT,
+  attempts      INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   source_msg_id    INTEGER REFERENCES messages(id), -- message that created the task
@@ -140,6 +160,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   title            TEXT NOT NULL,
   details          TEXT,
   due_at           TEXT,                   -- ISO UTC; NULL if no date
+  due_precision    TEXT NOT NULL DEFAULT 'time', -- date-only VU deadline has no known time
+  calendar_event_id TEXT,                  -- deterministic Google Calendar event ID
   status           TEXT NOT NULL DEFAULT 'open',  -- open | done | cancelled
   reminded_evening INTEGER NOT NULL DEFAULT 0,
   reminded_morning INTEGER NOT NULL DEFAULT 0,
@@ -149,7 +171,42 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS idx_messages_unprocessed ON messages(processed, sent_at);
 CREATE INDEX IF NOT EXISTS idx_messages_failure_batch ON messages(failure_batch_id);
+CREATE INDEX IF NOT EXISTS idx_media_jobs_attempts ON media_jobs(attempts, message_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, due_at);
+
+CREATE TABLE IF NOT EXISTS calendar_jobs (
+  task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+  revision INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS calendar_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+INSERT OR IGNORE INTO calendar_meta (key, value)
+VALUES ('instance_id', lower(hex(randomblob(16))));
+
+CREATE TRIGGER IF NOT EXISTS queue_calendar_task_insert
+AFTER INSERT ON tasks WHEN NEW.due_at IS NOT NULL
+BEGIN
+  INSERT INTO calendar_jobs (task_id) VALUES (NEW.id)
+  ON CONFLICT(task_id) DO UPDATE SET revision = revision + 1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS queue_calendar_task_update
+AFTER UPDATE OF subject, type, title, details, due_at, due_precision, status ON tasks
+BEGIN
+  INSERT INTO calendar_jobs (task_id) VALUES (NEW.id)
+  ON CONFLICT(task_id) DO UPDATE SET revision = revision + 1;
+END;
+
+CREATE TABLE IF NOT EXISTS source_tasks (
+  source TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  task_id INTEGER NOT NULL UNIQUE REFERENCES tasks(id) ON DELETE CASCADE,
+  PRIMARY KEY (source, external_id)
+);
 ```
 
 Store times in **UTC**, and convert to `TIMEZONE` only when you show them or schedule something.

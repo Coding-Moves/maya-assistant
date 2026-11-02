@@ -28,6 +28,8 @@ test('separate mode handles only inbound owner chat and ignores its own outgoing
     }),
   );
   const ev = new EventEmitter();
+  const viewedStatuses = [];
+  const commentedStatuses = [];
   let finishDelayedMapping;
   const delayedMapping = new Promise((resolve) => { finishDelayedMapping = resolve; });
   const detach = attachWhatsAppRouter({
@@ -41,7 +43,8 @@ test('separate mode handles only inbound owner chat and ignores its own outgoing
             : '999@s.whatsapp.net',
       },
     },
-  });
+  }, undefined, async (key) => { viewedStatuses.push(key.id); },
+  async (message) => { commentedStatuses.push(message.key.id); });
   try {
     const ids = [1, 2, 3, 4, 5].map((index) =>
       createTask({ type: 'quiz', title: `Quiz ${index}` }),
@@ -59,10 +62,33 @@ test('separate mode handles only inbound owner chat and ignores its own outgoing
         message('outgoing', '123@s.whatsapp.net', `done ${ids[2]}`, true),
         message('own-group', 'allowed@g.us', 'Outgoing from Maya', true),
         message('inbound-group', 'allowed@g.us', 'Quiz on Monday', false),
+        { ...message('status', 'status@broadcast', `done ${ids[4]}`, false),
+          key: { id: 'status', remoteJid: 'status@broadcast', remoteJidAlt: '123@s.whatsapp.net', participant: '123@s.whatsapp.net', fromMe: false },
+          broadcast: true },
+        { ...message('status', 'status@broadcast', `done ${ids[4]}`, false),
+          key: { id: 'status', remoteJid: 'status@broadcast', participant: '123@s.whatsapp.net', fromMe: false },
+          broadcast: true },
+        { ...message('stranger-status', 'status@broadcast', `done ${ids[4]}`, false),
+          key: { id: 'stranger-status', remoteJid: 'status@broadcast', remoteJidAlt: '123@s.whatsapp.net', participant: '999@s.whatsapp.net', fromMe: false },
+          broadcast: true },
+        { ...message('lid-status', 'status@broadcast', `done ${ids[4]}`, false),
+          key: { id: 'lid-status', remoteJid: 'status@broadcast', participant: '321@lid', fromMe: false },
+          broadcast: true },
+        { ...message('mapped-lid-status', 'status@broadcast', `done ${ids[4]}`, false),
+          key: { id: 'mapped-lid-status', remoteJid: 'status@broadcast', participant: '654@lid', fromMe: false },
+          broadcast: true },
+        { ...message('other-lid-status', 'status@broadcast', `done ${ids[4]}`, false),
+          key: { id: 'other-lid-status', remoteJid: 'status@broadcast', participant: '999@lid', fromMe: false },
+          broadcast: true },
+        { ...message('status-flag', '123@s.whatsapp.net', `done ${ids[4]}`, false), broadcast: true },
       ],
     });
 
     assert.deepEqual(openTasks().map(({ id }) => id), ids.slice(1));
+    assert.deepEqual(viewedStatuses, ['status', 'lid-status']);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(viewedStatuses, ['status', 'lid-status', 'mapped-lid-status']);
+    assert.deepEqual(commentedStatuses, ['status', 'lid-status', 'mapped-lid-status']);
     assert.deepEqual(
       db.prepare('SELECT text FROM messages ORDER BY id').all(),
       [{ text: 'Quiz on Monday' }],

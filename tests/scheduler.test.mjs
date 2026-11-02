@@ -50,10 +50,12 @@ test('scheduler applies timezone to every cron job and prevents overlapping extr
 
   intervalCallback();
   intervalCallback();
+  await Promise.resolve();
   assert.equal(extractionCount, 1);
   finishExtraction();
   await new Promise((resolve) => setImmediate(resolve));
   intervalCallback();
+  await Promise.resolve();
   assert.equal(extractionCount, 2);
   finishExtraction();
   await stop();
@@ -86,10 +88,33 @@ test('shutdown waits for active extraction and rejects new ticks', async () => {
     stopped = true;
   });
   await Promise.resolve();
+  await Promise.resolve();
   assert.equal(stopped, false);
   intervalCallback();
   assert.equal(extractionCount, 1);
   finishExtraction();
   await stopping;
   assert.equal(stopped, true);
+});
+
+test('media text is ready before the extraction run starts', async () => {
+  let intervalCallback;
+  let finishMedia;
+  const order = [];
+  const stop = startJobs({
+    media: async () => {
+      order.push('media start');
+      await new Promise((resolve) => { finishMedia = resolve; });
+      order.push('media done');
+    },
+    extract: async () => { order.push('extract'); },
+    schedule: () => ({ stop: () => undefined }),
+    every: (callback) => { intervalCallback = callback; return 1; },
+    clear: () => undefined,
+  });
+  intervalCallback();
+  assert.deepEqual(order, ['media start']);
+  finishMedia();
+  await stop();
+  assert.deepEqual(order, ['media start', 'media done', 'extract']);
 });

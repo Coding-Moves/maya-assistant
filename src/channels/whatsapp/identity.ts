@@ -78,6 +78,8 @@ export async function verifyOwnerLid(sock: WASocket, jid: string): Promise<boole
 
 export function isOwnerChat(jid: string | null | undefined, alternateJid?: string | null): boolean {
   if (!ownerIdentity) return false;
+  // An alternate user JID must never turn a status/broadcast/group into the owner chat.
+  if (!normalizedUserJid(jid)) return false;
   return [jid, alternateJid].some((candidate) => {
     const normalized = normalizedUserJid(candidate);
     return normalized !== null && ownerIdentity?.knownJids.has(normalized) === true;

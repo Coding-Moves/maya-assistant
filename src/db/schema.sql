@@ -19,6 +19,14 @@ CREATE TABLE IF NOT EXISTS extraction_failures (
   owner_notified_at TEXT               -- NULL until sendToOwner succeeds
 );
 
+CREATE TABLE IF NOT EXISTS media_jobs (
+  message_id    INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+  payload       BLOB NOT NULL,             -- encoded WhatsApp message for restart-safe retry
+  mime_type     TEXT NOT NULL,
+  caption       TEXT,
+  attempts      INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   source_msg_id    INTEGER REFERENCES messages(id), -- message that created the task
@@ -28,6 +36,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   title            TEXT NOT NULL,
   details          TEXT,
   due_at           TEXT,                   -- ISO UTC; NULL if no date
+  due_precision    TEXT NOT NULL DEFAULT 'time', -- 'date' for VU items with no exact time
+  calendar_event_id TEXT,                   -- deterministic Google Calendar event ID
   status           TEXT NOT NULL DEFAULT 'open',  -- open | done | cancelled
   reminded_evening INTEGER NOT NULL DEFAULT 0,
   reminded_morning INTEGER NOT NULL DEFAULT 0,
@@ -37,4 +47,39 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS idx_messages_unprocessed ON messages(processed, sent_at);
 CREATE INDEX IF NOT EXISTS idx_messages_failure_batch ON messages(failure_batch_id);
+CREATE INDEX IF NOT EXISTS idx_media_jobs_attempts ON media_jobs(attempts, message_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, due_at);
+
+CREATE TABLE IF NOT EXISTS calendar_jobs (
+  task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+  revision INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS calendar_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+INSERT OR IGNORE INTO calendar_meta (key, value)
+VALUES ('instance_id', lower(hex(randomblob(16))));
+
+CREATE TRIGGER IF NOT EXISTS queue_calendar_task_insert
+AFTER INSERT ON tasks WHEN NEW.due_at IS NOT NULL
+BEGIN
+  INSERT INTO calendar_jobs (task_id) VALUES (NEW.id)
+  ON CONFLICT(task_id) DO UPDATE SET revision = revision + 1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS queue_calendar_task_update
+AFTER UPDATE OF subject, type, title, details, due_at, due_precision, status ON tasks
+BEGIN
+  INSERT INTO calendar_jobs (task_id) VALUES (NEW.id)
+  ON CONFLICT(task_id) DO UPDATE SET revision = revision + 1;
+END;
+
+CREATE TABLE IF NOT EXISTS source_tasks (
+  source TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  task_id INTEGER NOT NULL UNIQUE REFERENCES tasks(id) ON DELETE CASCADE,
+  PRIMARY KEY (source, external_id)
+);
