@@ -87,7 +87,7 @@ Commit when done. Do NOT open a PR.
 **Prompt:**
 ```
 Read AGENTS.md and ARCHITECTURE.md. Before coding, check the current Baileys v7 docs (https://baileys.wiki) for makeWASocket options, useMultiFileAuthState, the connection.update event and DisconnectReason. Do Step 3 (WhatsApp connection) only.
-- src/channels/whatsapp/connection.ts: useMultiFileAuthState(AUTH_DIR), makeWASocket with markOnlineOnConnect:false, syncFullHistory:false, pino logger at warn level. Render the qr from connection.update with qrcode-terminal (do NOT use printQRInTerminal). Save creds on creds.update.
+- src/channels/whatsapp/connection.ts: useMultiFileAuthState(AUTH_DIR), makeWASocket with markOnlineOnConnect:false, syncFullHistory:false, and a Pino logger. Keep Baileys logs silent in production because warning/error payloads can include private WhatsApp nodes. Render the qr from connection.update with qrcode-terminal (do NOT use printQRInTerminal). Save creds on creds.update.
 - Reconnect on close with exponential backoff (1s → max 5min). A disconnect with `DisconnectReason.restartRequired` after scanning is expected; reconnect with the saved credentials. If logged out, log a clear message telling the user to delete AUTH_DIR and rescan, then exit.
 - src/channels/whatsapp/identity.ts: after connection opens, store the owner identity. In self mode: sock.user.id and sock.user.lid, normalized. In separate mode: OWNER_JID (and its LID if resolvable via `sock.signalRepository.lidMapping.getLIDForPN`). Export isOwnerChat(jid, alternateJid?) and fail closed when the identity cannot be verified.
 - Log "Connected as <name>" when open.

@@ -10,6 +10,11 @@ import { ownerInput } from './trigger.js';
 
 const allowedGroups = new Set(config.GROUP_ALLOWLIST);
 const botPrefix = `🤖 ${config.BOT_NAME}:`;
+const pendingOwnerReplies = new Set<Promise<void>>();
+
+export async function waitForOwnerReplies(): Promise<void> {
+  await Promise.allSettled(pendingOwnerReplies);
+}
 
 export function attachWhatsAppRouter(sock: WASocket): () => void {
   let active = true;
@@ -44,13 +49,15 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
     const input = ownerInput(text, message.key.fromMe);
     if (!input) return;
     void markOwnerMessageRead(message.key);
-    void handleOwnerText(input).catch((error: unknown) => {
+    const reply = handleOwnerText(input).catch((error: unknown) => {
       logger.error(
         { errorType: error instanceof Error ? error.name : 'unknown' },
         'Could not handle owner message',
       );
       logger.debug({ err: error }, 'Owner command failure details');
     });
+    pendingOwnerReplies.add(reply);
+    void reply.finally(() => pendingOwnerReplies.delete(reply));
   };
   const onMessages = ({
     messages,

@@ -49,7 +49,7 @@ flowchart TD
 | AI | `@google/genai` | Model from `GEMINI_MODEL` |
 | Validation | `zod` | For env and AI output |
 | Scheduler | `node-cron` | Always pass `timezone` |
-| Logging | `pino` | Same logger Baileys uses |
+| Logging | `pino` | Application logs; Baileys logging is silent to avoid raw WhatsApp payloads |
 | Lint/format | `eslint` + `prettier` | |
 
 ## Repository structure
@@ -92,7 +92,7 @@ maya-assistant/
 │       └── time.ts               # Timezone helpers, ISO formatting
 ├── scripts/
 │   ├── list-groups.ts            # Prints group names + JIDs
-│   └── backup-db.ts              # Copies the DB file with a timestamp
+│   └── backup-db.ts              # SQLite online backup; retains seven completed snapshots
 ├── data/                         # maya.db (git-ignored)
 ├── auth_info/                    # WhatsApp session (git-ignored, never commit)
 ├── .env.example

@@ -2,7 +2,7 @@
 
 **Your personal WhatsApp assistant that never misses a deadline.**
 
-**Development status:** WhatsApp group ingest, AI task extraction, owner commands, Q&A, scheduled reminders, and weekly plans are implemented through Step 9. Phase 1 hardening remains in [ROADMAP.md](ROADMAP.md).
+**Development status:** Phase 1 is implemented through Step 10, including graceful shutdown and manual SQLite backups. The one-day reminder check is still a manual validation step in [ROADMAP.md](ROADMAP.md).
 
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
@@ -72,6 +72,8 @@ npm run list-groups
 
 Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart with `npm run dev`. Maya saves new text and captions from those groups, extracts tasks every `EXTRACT_INTERVAL_MIN` minutes, answers your commands and questions, and sends scheduled reminders while running.
 
+To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages and tasks, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backups are planned for Phase 2.
+
 ## Talking to Maya
 
 **On your own number:** open the **"Message Yourself"** chat in WhatsApp. Start your message with her name, or mention `@maya` anywhere:
@@ -137,4 +139,4 @@ MIT. Use it, change it, share it.
 
 ## Coding Moves Lab
 
-Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). Group ingest, task extraction, and scheduled reminders are implemented; Phase 1 hardening remains.
+Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). Phase 1 features and hardening are implemented; the one-day reminder check remains.

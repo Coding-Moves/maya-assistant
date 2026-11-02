@@ -60,3 +60,36 @@ test('scheduler applies timezone to every cron job and prevents overlapping extr
   assert.equal(clearCount, 1);
   assert.equal(stopCount, 3);
 });
+
+test('shutdown waits for active extraction and rejects new ticks', async () => {
+  let intervalCallback;
+  let finishExtraction;
+  let extractionCount = 0;
+  const stop = startJobs({
+    extract: async () => {
+      extractionCount += 1;
+      await new Promise((resolve) => {
+        finishExtraction = resolve;
+      });
+    },
+    schedule: () => ({ stop: () => undefined }),
+    every: (callback) => {
+      intervalCallback = callback;
+      return 1;
+    },
+    clear: () => undefined,
+  });
+
+  intervalCallback();
+  let stopped = false;
+  const stopping = stop().then(() => {
+    stopped = true;
+  });
+  await Promise.resolve();
+  assert.equal(stopped, false);
+  intervalCallback();
+  assert.equal(extractionCount, 1);
+  finishExtraction();
+  await stopping;
+  assert.equal(stopped, true);
+});

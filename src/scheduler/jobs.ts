@@ -44,8 +44,18 @@ export function startJobs(
   const every = dependencies.every ?? setInterval;
   const clear = dependencies.clear ?? clearInterval;
   let extractionRunning = false;
+  let stopping = false;
+  let stopWork: Promise<void> | null = null;
+  const pending = new Set<Promise<unknown>>();
+  const track = (work: Promise<unknown>) => {
+    pending.add(work);
+    void work.then(
+      () => pending.delete(work),
+      () => pending.delete(work),
+    );
+  };
   const runExtraction = async () => {
-    if (extractionRunning) return;
+    if (stopping || extractionRunning) return;
     extractionRunning = true;
     try {
       await extract();
@@ -59,31 +69,42 @@ export function startJobs(
       extractionRunning = false;
     }
   };
+  const runScheduledJob = (name: JobName) => {
+    if (!stopping) track(runJob(name));
+  };
 
   const jobs = [
-    schedule(config.MORNING_DIGEST_CRON, () => runJob('morning'), {
+    schedule(config.MORNING_DIGEST_CRON, () => runScheduledJob('morning'), {
       timezone: config.TIMEZONE,
       noOverlap: true,
       name: 'maya-morning',
     }),
-    schedule(config.EVENING_DIGEST_CRON, () => runJob('evening'), {
+    schedule(config.EVENING_DIGEST_CRON, () => runScheduledJob('evening'), {
       timezone: config.TIMEZONE,
       noOverlap: true,
       name: 'maya-evening',
     }),
-    schedule(config.WEEKLY_PLAN_CRON, () => runJob('weekly'), {
+    schedule(config.WEEKLY_PLAN_CRON, () => runScheduledJob('weekly'), {
       timezone: config.TIMEZONE,
       noOverlap: true,
       name: 'maya-weekly',
     }),
   ];
   const extractionTimer = every(
-    () => void runExtraction(),
+    () => {
+      if (!stopping) track(runExtraction());
+    },
     config.EXTRACT_INTERVAL_MIN * 60_000,
   );
 
-  return async () => {
-    clear(extractionTimer);
-    await Promise.all(jobs.map((job) => job.stop()));
+  return () => {
+    if (stopWork) return stopWork;
+    stopping = true;
+    stopWork = (async () => {
+      clear(extractionTimer);
+      await Promise.all(jobs.map((job) => job.stop()));
+      await Promise.allSettled(pending);
+    })();
+    return stopWork;
   };
 }
