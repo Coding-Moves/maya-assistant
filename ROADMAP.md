@@ -14,7 +14,7 @@ Steps marked 🙋 **Manual** are things a human has to do: scan a QR code, copy 
 | **2. Always on** | Second-number mode, persistent VM, PM2/Docker options; automatic/off-host backups deferred by owner | ✅ |
 | **3. Media** | Opt-in images and PDFs from allowed groups via Gemini vision | ✅ (live media check pending) |
 | **4. Calendar** | Opt-in Google Calendar task sync | ✅ (owner OAuth/live check pending) |
-| **5. More sources** | Source interface and credential-free VU Classic To Do CSV import | ✅ (owner import pending) |
+| **5. More sources** | Source interface and VU Classic To Do CSV import; optional daily LMS check added later | ✅ (daily login live check pending) |
 | **6. Extras** | MCP server over the DB, multi-language support (e.g. Roman Urdu), simple web dashboard | 💡 Ideas |
 
 ---
@@ -246,6 +246,8 @@ OAuth for a single user, plus a `calendar_event_id` column on tasks. Create, upd
 
 ## Phase 5 — More sources (outline)
 Define a `Source<T>` interface (`start(emit)`, `stop()`) and place WhatsApp behind it. The first additional source is a credential-free VU Classic To Do CSV importer in `src/sources/vu/`; it emits normalized quiz/assignment items and upserts tasks. It does not authenticate to, poll, or scrape the LMS. See [the VU guide](docs/VU-CLASSIC-TODO.md).
+
+After the original Phase 5, an optional daily Classic To Do reader was requested. It uses a private LMS student ID/password and a normal headless Chromium sign-in, reads only assignments and quizzes, and upserts them through the same mapping. A login challenge or layout change stops the import and alerts the owner; it is never bypassed. The CSV import remains available.
 
 ## Phase 6 — Ideas
 - MCP server (read-only) so AI assistants can ask "what's due?"
