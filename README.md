@@ -72,7 +72,9 @@ npm run list-groups
 
 Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart with `npm run dev`. Maya saves new text and captions from those groups, extracts tasks every `EXTRACT_INTERVAL_MIN` minutes, answers your commands and questions, and sends scheduled reminders while running.
 
-To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages and tasks, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backups are planned for Phase 2.
+For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage.
+
+To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages and tasks, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backup automation is deferred.
 
 ## Talking to Maya
 
