@@ -19,6 +19,14 @@ CREATE TABLE IF NOT EXISTS extraction_failures (
   owner_notified_at TEXT               -- NULL until sendToOwner succeeds
 );
 
+CREATE TABLE IF NOT EXISTS media_jobs (
+  message_id    INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+  payload       BLOB NOT NULL,             -- encoded WhatsApp message for restart-safe retry
+  mime_type     TEXT NOT NULL,
+  caption       TEXT,
+  attempts      INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   source_msg_id    INTEGER REFERENCES messages(id), -- message that created the task
@@ -37,4 +45,5 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS idx_messages_unprocessed ON messages(processed, sent_at);
 CREATE INDEX IF NOT EXISTS idx_messages_failure_batch ON messages(failure_batch_id);
+CREATE INDEX IF NOT EXISTS idx_media_jobs_attempts ON media_jobs(attempts, message_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, due_at);

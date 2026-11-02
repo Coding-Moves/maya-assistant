@@ -19,6 +19,9 @@ flowchart TD
     R -->|verified owner chat| Q[Ask / Commands]
     R -->|anything else| X[Ignore]
     I --> DB[(SQLite: messages)]
+    I --> MQ[(SQLite: media_jobs)]
+    MQ --> MV[Gemini vision, bounded files]
+    MV --> DB
     DB --> E[Extractor job, every N min]
     E --> AI[Gemini, structured JSON]
     AI --> T[(SQLite: tasks)]
@@ -33,6 +36,7 @@ flowchart TD
 ### Key design decisions
 
 - **Batch extraction.** The AI runs on batches of unprocessed messages every `EXTRACT_INTERVAL_MIN` minutes, not on every message. This means fewer API calls, lower cost, and better context (it can see "quiz moved to Monday" right after "quiz on Friday").
+- **Media queue.** Supported images and PDFs from allowlisted groups are stored as bounded, retryable media jobs before text extraction. Pending placeholders never enter task extraction or Q&A. Completed text enters the same `messages` table. The queue stores the WhatsApp media key and metadata, so it needs the same private storage protection as auth data.
 - **Update, don't duplicate.** The extractor gets the list of open tasks with each batch, so it can update an existing task (a new date, or cancelled) instead of creating a second one.
 - **One way out.** Only `sendToOwner()` can send messages. This is the main safety rule.
 - **Loop guard.** Self mode keeps the `🤖 <BOT_NAME>:` prefix and ignores it on input. Separate mode sends plain text and ignores Maya's outgoing messages through `key.fromMe`.
@@ -73,6 +77,7 @@ maya-assistant/
 │   │   ├── migrate.ts            # Applies schema on start
 │   │   └── repos/
 │   │       ├── messages.ts       # insert (dedupe), getUnprocessed, quarantine, markProcessed, recent
+│   │       ├── media.ts          # Pending media jobs, completion, and quarantine
 │   │       └── tasks.ts          # upsert, dueBetween, open, markDone, markReminded
 │   ├── ai/
 │   │   ├── gemini.ts             # Client wrapper, retry with backoff on 429/5xx
@@ -80,6 +85,7 @@ maya-assistant/
 │   │   └── schemas.ts            # zod schemas for AI JSON
 │   ├── features/
 │   │   ├── ingest.ts             # Save allowlisted group messages
+│   │   ├── media.ts              # Retryable image/PDF reading before text extraction
 │   │   ├── extract.ts            # Batch → AI → upsert tasks → mark processed
 │   │   ├── commands.ts           # No-AI commands: help, tasks, done <id>
 │   │   ├── ask.ts                # Free-form questions answered with AI
@@ -131,6 +137,14 @@ CREATE TABLE IF NOT EXISTS extraction_failures (
   owner_notified_at TEXT               -- NULL until sendToOwner succeeds
 );
 
+CREATE TABLE IF NOT EXISTS media_jobs (
+  message_id    INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+  payload       BLOB NOT NULL,
+  mime_type     TEXT NOT NULL,
+  caption       TEXT,
+  attempts      INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   source_msg_id    INTEGER REFERENCES messages(id), -- message that created the task
@@ -149,6 +163,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS idx_messages_unprocessed ON messages(processed, sent_at);
 CREATE INDEX IF NOT EXISTS idx_messages_failure_batch ON messages(failure_batch_id);
+CREATE INDEX IF NOT EXISTS idx_media_jobs_attempts ON media_jobs(attempts, message_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, due_at);
 ```
 

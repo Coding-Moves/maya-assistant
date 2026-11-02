@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { config } from '../config/env.js';
 import { runDigest } from '../features/digests.js';
 import { extractOnce } from '../features/extract.js';
+import { processPendingMedia } from '../features/media.js';
 import { runWeeklyPlan } from '../features/weeklyPlan.js';
 import { logger } from '../utils/logger.js';
 
@@ -12,6 +13,7 @@ const runningJobs = new Set<JobName>();
 
 interface JobDependencies {
   extract: typeof extractOnce;
+  media: typeof processPendingMedia;
   schedule: typeof cron.schedule;
   every: typeof setInterval;
   clear: typeof clearInterval;
@@ -40,6 +42,7 @@ export function startJobs(
   dependencies: Partial<JobDependencies> = {},
 ): () => Promise<void> {
   const extract = dependencies.extract ?? extractOnce;
+  const media = dependencies.media ?? processPendingMedia;
   const schedule = dependencies.schedule ?? cron.schedule;
   const every = dependencies.every ?? setInterval;
   const clear = dependencies.clear ?? clearInterval;
@@ -57,6 +60,15 @@ export function startJobs(
   const runExtraction = async () => {
     if (stopping || extractionRunning) return;
     extractionRunning = true;
+    try {
+      await media();
+    } catch (error) {
+      logger.error(
+        { errorType: error instanceof Error ? error.name : 'unknown' },
+        'Media run failed',
+      );
+      logger.debug({ err: error }, 'Media run failure details');
+    }
     try {
       await extract();
     } catch (error) {

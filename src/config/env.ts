@@ -5,6 +5,9 @@ import { z } from 'zod';
 const positiveInteger = (defaultValue: number) =>
   z.coerce.number().int().positive().default(defaultValue);
 
+const booleanFlag = (defaultValue: 'true' | 'false') =>
+  z.enum(['true', 'false']).default(defaultValue).transform((value) => value === 'true');
+
 const cronExpression = (defaultValue: string) =>
   z.string().trim().refine(cron.validate, 'must be a valid cron expression').default(defaultValue);
 
@@ -47,6 +50,9 @@ const envSchema = z
     GEMINI_MODEL: z.string().trim().min(1).default('gemini-3.5-flash'),
     EXTRACT_BATCH_SIZE: positiveInteger(50),
     ASK_CONTEXT_MESSAGES: positiveInteger(100),
+    MEDIA_ENABLED: booleanFlag('false'),
+    MEDIA_MAX_BYTES: positiveInteger(5_000_000),
+    MEDIA_BATCH_SIZE: positiveInteger(3),
     MAX_REPLIES_PER_HOUR: positiveInteger(20),
     DATABASE_PATH: z.string().trim().min(1).default('./data/maya.db'),
     AUTH_DIR: z.string().trim().min(1).default('./auth_info'),

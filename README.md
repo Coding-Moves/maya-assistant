@@ -16,7 +16,7 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 ## What Maya can do
 
 - 👂 **Listens** only to the groups you pick. She never posts in them.
-- 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it.
+- 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it. Optional image and PDF reading covers supported media in the same chosen groups.
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
 - 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
 - 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; selected group text is sent to Gemini for analysis.
@@ -25,7 +25,7 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 ## How it works, in plain words
 
 1. Maya connects to WhatsApp as a **linked device**, the same way WhatsApp Web does.
-2. New text messages and media captions in your chosen groups are saved on your computer.
+2. New text messages and media captions in your chosen groups are saved locally. When media reading is enabled, supported images and PDFs are sent to Gemini, and their extracted text is saved instead of the file.
 3. Every few minutes, she sends the new messages to an AI (Google Gemini), which pulls out tasks and dates.
 4. She sends reminders and answers **only to you**, in your own chat.
 
@@ -39,7 +39,7 @@ Want the technical details? See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 👉 **The safest setup is a second phone number** (a cheap SIM) just for Maya. You can start with your own number and switch later. It takes two minutes.
 
-**Respect other people's privacy.** Messages from your group are sent to Google's AI to be understood. Only use Maya on groups where that's okay, and never share the database file.
+**Respect other people's privacy.** Messages from your group, and images/PDFs when enabled, are sent to Google's AI to be understood. Only use Maya on groups where that's okay, and never share the database file.
 
 **This is a personal tool,** not for spam, marketing, or bulk messaging.
 
@@ -71,6 +71,8 @@ npm run list-groups
 ```
 
 Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart with `npm run dev`. Maya saves new text and captions from those groups, extracts tasks every `EXTRACT_INTERVAL_MIN` minutes, answers your commands and questions, and sends scheduled reminders while running.
+
+To read JPEG, PNG, WebP, and PDF announcements, set `MEDIA_ENABLED=true`. Maya handles at most `MEDIA_BATCH_SIZE` files per extraction run and refuses files above `MEDIA_MAX_BYTES` (default 5 MB). Large files with a caption still contribute that caption. Media reading uses Gemini and can increase API usage. A failed item is retried three times, then quarantined and reported to you.
 
 For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage.
 
@@ -111,6 +113,7 @@ Everything lives in `.env`. The main ones:
 | `EVENING_DIGEST_CRON` | When to send "due tomorrow" | `0 20 * * *` |
 | `WEEKLY_PLAN_CRON` | When to send the weekly plan | `0 20 * * 5` |
 | `GEMINI_MODEL` | Which AI model to use | `gemini-3.5-flash` |
+| `MEDIA_ENABLED` | Read supported group images and PDFs with Gemini | `false` |
 
 The full list is in [`.env.example`](.env.example).
 

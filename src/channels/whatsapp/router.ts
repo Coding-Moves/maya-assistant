@@ -1,6 +1,7 @@
 import type { BaileysEventMap, GroupMetadata, WASocket } from 'baileys';
 import { config } from '../../config/env.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
+import { enqueueGroupMedia } from '../../features/media.js';
 import { handleOwnerText } from '../../features/commands.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat, verifyOwnerLid } from './identity.js';
@@ -68,13 +69,14 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
       const chatId = message.key.remoteJid;
       if (!chatId) continue;
       const text = parseMessageText(message.message);
-      if (!text) continue;
       if (config.BOT_MODE === 'separate' && message.key.fromMe === true)
         continue;
-      if (config.BOT_MODE === 'self' && text.startsWith(botPrefix)) continue;
+      if (config.BOT_MODE === 'self' && text?.startsWith(botPrefix)) continue;
 
       if (allowedGroups.has(chatId)) {
         try {
+          if (enqueueGroupMedia(message, groupNames.get(chatId) ?? null)) continue;
+          if (!text) continue;
           const id = ingestGroupMessage(
             message,
             text,
@@ -96,9 +98,9 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
           );
           logger.debug({ err: error }, 'Group message ingest failure details');
         }
-      } else if (isOwnerChat(chatId, message.key.remoteJidAlt)) {
+      } else if (text && isOwnerChat(chatId, message.key.remoteJidAlt)) {
         handleOwnerMessage(message, text);
-      } else if (config.BOT_MODE === 'separate' && message.key.fromMe === false) {
+      } else if (text && config.BOT_MODE === 'separate' && message.key.fromMe === false) {
         void verifyOwnerLid(sock, chatId).then((verified) => {
           if (active && verified) handleOwnerMessage(message, text);
         }).catch((error: unknown) => {

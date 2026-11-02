@@ -95,3 +95,16 @@ export async function generateText(prompt: string): Promise<string> {
   if (!text) throw new Error('Gemini returned no text');
   return text;
 }
+
+export async function readAcademicMedia(bytes: Buffer, mimeType: string): Promise<string> {
+  const response = await withRetry(() => ai.models.generateContent({
+    model: config.GEMINI_MODEL,
+    contents: [
+      { inlineData: { mimeType, data: bytes.toString('base64') } },
+      { text: 'Transcribe legible academic announcement text. Preserve course codes, quiz and assignment names, dates, times, and changes exactly. Do not invent missing details. If there is no legible academic text, reply exactly NO_TEXT.' },
+    ],
+  }));
+  const text = response.text?.trim();
+  if (!text) throw new Error('Gemini returned no media text');
+  return text;
+}

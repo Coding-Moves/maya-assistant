@@ -1,8 +1,8 @@
 import type { WAMessageContent } from 'baileys';
 
-export function parseMessageText(
+export function unwrapMessageContent(
   message: WAMessageContent | null | undefined,
-): string | null {
+): WAMessageContent | null {
   let content = message;
   for (let depth = 0; content && depth < 8; depth += 1) {
     const wrapped =
@@ -15,6 +15,13 @@ export function parseMessageText(
     content = wrapped;
   }
 
+  return content ?? null;
+}
+
+export function parseMessageText(
+  message: WAMessageContent | null | undefined,
+): string | null {
+  const content = unwrapMessageContent(message);
   if (!content) return null;
   const candidates = [
     content.conversation,
