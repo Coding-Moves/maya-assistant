@@ -86,6 +86,7 @@ export async function fetchClassicTodoItems(): Promise<VuItem[]> {
     await page.goto(TODO_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     if (new URL(page.url()).pathname !== new URL(TODO_URL).pathname)
       throw new Error('VU Classic To Do page did not open after sign-in');
+    await page.locator('#tabHClassic').click();
     await page.locator('#MainContent_gvAssignmentsToDo').waitFor({ state: 'attached' });
     await page.locator('#MainContent_gvQuizzesToDo').waitFor({ state: 'attached' });
     const tables = await page.evaluate(() => {
