@@ -3,6 +3,7 @@ import { config } from '../../config/env.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
 import { enqueueGroupMedia } from '../../features/media.js';
 import { handleOwnerText } from '../../features/commands.js';
+import { commentOnOwnerStatus } from '../../features/status.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat, verifyOwnerLid } from './identity.js';
 import { parseMessageText } from './parse.js';
@@ -23,8 +24,10 @@ export function attachWhatsAppRouter(
   sock: WASocket,
   onGroupText: GroupTextHandler = ingestGroupMessage,
   viewOwnerStatus: (key: WAMessageKey) => Promise<void> = markOwnerStatusRead,
+  replyToOwnerStatus: (message: WAMessage, sock: WASocket) => Promise<void> = commentOnOwnerStatus,
 ): () => void {
   let active = true;
+  const handledStatusIds = new Set<string>();
   const groupNames = new Map<string, string>();
   const rememberGroup = (group: Partial<GroupMetadata>) => {
     if (group.id && allowedGroups.has(group.id) && group.subject) {
@@ -66,10 +69,22 @@ export function attachWhatsAppRouter(
     pendingOwnerReplies.add(reply);
     void reply.finally(() => pendingOwnerReplies.delete(reply));
   };
-  const viewStatus = (key: WAMessageKey) => {
-    void viewOwnerStatus(key).catch((error: unknown) => {
-      logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not view owner Status');
+  const handleStatus = (message: WAMessage) => {
+    const key = message.key;
+    if (!key.id || !key.participant) return;
+    const statusId = `${key.participant}:${key.id}`;
+    if (handledStatusIds.has(statusId)) return;
+    handledStatusIds.add(statusId);
+    if (handledStatusIds.size > 1_000) handledStatusIds.delete(handledStatusIds.values().next().value!);
+    const reply = (async () => {
+      await viewOwnerStatus(key);
+      if (active) await replyToOwnerStatus(message, sock);
+    })().catch((error: unknown) => {
+      logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not handle owner Status');
+      logger.debug({ err: error }, 'Owner Status failure details');
     });
+    pendingOwnerReplies.add(reply);
+    void reply.finally(() => pendingOwnerReplies.delete(reply));
   };
   const onMessages = ({
     messages,
@@ -83,10 +98,10 @@ export function attachWhatsAppRouter(
         const author = message.key.participant;
         if (config.BOT_MODE === 'separate' && message.key.fromMe === false && author) {
           if (isOwnerChat(author)) {
-            viewStatus(message.key);
+            handleStatus(message);
           } else {
             void verifyOwnerLid(sock, author).then((verified) => {
-              if (active && verified) viewStatus(message.key);
+              if (active && verified) handleStatus(message);
             }).catch((error: unknown) => {
               logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not verify Status author');
             });
