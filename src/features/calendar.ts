@@ -18,10 +18,17 @@ interface CalendarJob {
 type Request = typeof fetch;
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
+class CalendarHttpError extends Error {
+  constructor(readonly operation: string, readonly status: number) {
+    super(`Google Calendar ${operation} failed (${status})`);
+  }
+}
+
 async function accessToken(request: Request): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.value;
   const response = await request('https://oauth2.googleapis.com/token', {
     method: 'POST',
+    signal: AbortSignal.timeout(10_000),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: config.GOOGLE_CLIENT_ID,
@@ -30,7 +37,7 @@ async function accessToken(request: Request): Promise<string> {
       grant_type: 'refresh_token',
     }),
   });
-  if (!response.ok) throw new Error(`Google token refresh failed (${response.status})`);
+  if (!response.ok) throw new CalendarHttpError('token refresh', response.status);
   const data = await response.json() as { access_token?: string; expires_in?: number };
   if (!data.access_token) throw new Error('Google token response is missing access_token');
   cachedToken = {
@@ -44,6 +51,7 @@ async function calendarRequest(request: Request, method: string, path: string, b
   const token = await accessToken(request);
   const response = await request(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(config.GOOGLE_CALENDAR_ID)}/events${path}`, {
     method,
+    signal: AbortSignal.timeout(10_000),
     headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
@@ -51,7 +59,7 @@ async function calendarRequest(request: Request, method: string, path: string, b
   return response;
 }
 
-function eventBody(job: CalendarJob, eventId: string): object {
+function eventBody(job: CalendarJob, eventId: string) {
   const due = new Date(job.dueAt!);
   if (job.duePrecision === 'date') {
     const date = localDateInTimezone(due);
@@ -59,6 +67,7 @@ function eventBody(job: CalendarJob, eventId: string): object {
     next.setUTCDate(next.getUTCDate() + 1);
     return {
       id: eventId,
+      visibility: 'private',
       summary: [job.subject, job.title].filter(Boolean).join(' — ').slice(0, 500),
       description: (job.details ?? '').slice(0, 8000),
       start: { date },
@@ -67,6 +76,7 @@ function eventBody(job: CalendarJob, eventId: string): object {
   }
   return {
     id: eventId,
+    visibility: 'private',
     summary: [job.subject, job.title].filter(Boolean).join(' — ').slice(0, 500),
     description: (job.details ?? '').slice(0, 8000),
     start: { dateTime: due.toISOString() },
@@ -75,11 +85,13 @@ function eventBody(job: CalendarJob, eventId: string): object {
 }
 
 function assertResponse(response: Response, operation: string): void {
-  if (!response.ok) throw new Error(`Google Calendar ${operation} failed (${response.status})`);
+  if (!response.ok) throw new CalendarHttpError(operation, response.status);
 }
 
 async function syncJob(job: CalendarJob, request: Request): Promise<void> {
-  const eventId = job.eventId ?? `maya${job.taskId.toString(16).padStart(8, '0')}`;
+  const instance = db.prepare<[], { value: string }>("SELECT value FROM calendar_meta WHERE key = 'instance_id'").get()?.value;
+  if (!instance) throw new Error('Calendar instance ID is unavailable');
+  const eventId = job.eventId ?? `${instance}${job.taskId.toString(16).padStart(8, '0')}`;
   const path = `/${encodeURIComponent(eventId)}`;
   if (job.status !== 'open' || !job.dueAt) {
     if (job.eventId) {
@@ -91,9 +103,10 @@ async function syncJob(job: CalendarJob, request: Request): Promise<void> {
     // Persist the ID first. A crash after Google creates the event can then be reconciled.
     db.prepare('UPDATE tasks SET calendar_event_id = ? WHERE id = ?').run(eventId, job.taskId);
     const body = eventBody(job, eventId);
-    const response = await calendarRequest(request, job.eventId ? 'PATCH' : 'POST', job.eventId ? path : '', body);
+    const updateBody = { ...body, id: undefined };
+    const response = await calendarRequest(request, job.eventId ? 'PUT' : 'POST', job.eventId ? path : '', job.eventId ? updateBody : body);
     if (response.status === 409) {
-      assertResponse(await calendarRequest(request, 'PATCH', path, body), 'update');
+      assertResponse(await calendarRequest(request, 'PUT', path, updateBody), 'update');
     } else if (response.status === 404 && job.eventId) {
       assertResponse(await calendarRequest(request, 'POST', '', body), 'create');
     } else {
@@ -118,6 +131,8 @@ export async function syncCalendarOnce(request: Request = fetch): Promise<void> 
     } catch (error) {
       logger.error({ taskId: job.taskId, errorType: error instanceof Error ? error.name : 'unknown' }, 'Calendar sync failed');
       logger.debug({ err: error }, 'Calendar sync failure details');
+      // An outage, expired token, or quota limit affects every job; retry next run.
+      if (!(error instanceof CalendarHttpError) || error.operation === 'token refresh' || error.status === 401 || error.status === 403 || error.status === 429 || error.status >= 500) break;
     }
   }
 }

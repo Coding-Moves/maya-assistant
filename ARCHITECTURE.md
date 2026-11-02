@@ -37,7 +37,7 @@ flowchart TD
 
 - **Batch extraction.** The AI runs on batches of unprocessed messages every `EXTRACT_INTERVAL_MIN` minutes, not on every message. This means fewer API calls, lower cost, and better context (it can see "quiz moved to Monday" right after "quiz on Friday").
 - **Media queue.** Supported images and PDFs from allowlisted groups are stored as bounded, retryable media jobs before text extraction. Pending placeholders never enter task extraction or Q&A. Completed text enters the same `messages` table. The queue stores the WhatsApp media key and metadata, so it needs the same private storage protection as auth data.
-- **Calendar queue.** Task inserts and meaningful changes enqueue a durable calendar job. Google event IDs are deterministic, so retries after a crash update the same event. A revision counter keeps concurrent changes queued. Calendar sync is off until the owner completes OAuth and enables it.
+- **Calendar queue.** Task inserts and meaningful changes enqueue a durable calendar job. Event IDs combine a random, persistent database namespace with the task ID using Google-compatible characters, so retries after a crash update the same event without colliding with another installation. A revision counter keeps concurrent changes queued. Calendar sync is off until the owner completes OAuth and enables it.
 - **Update, don't duplicate.** The extractor gets the list of open tasks with each batch, so it can update an existing task (a new date, or cancelled) instead of creating a second one.
 - **One way out.** Only `sendToOwner()` can send messages. This is the main safety rule.
 - **Loop guard.** Self mode keeps the `🤖 <BOT_NAME>:` prefix and ignores it on input. Separate mode sends plain text and ignores Maya's outgoing messages through `key.fromMe`.
@@ -173,6 +173,14 @@ CREATE TABLE IF NOT EXISTS calendar_jobs (
   task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
   revision INTEGER NOT NULL DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS calendar_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+INSERT OR IGNORE INTO calendar_meta (key, value)
+VALUES ('instance_id', lower(hex(randomblob(16))));
 
 CREATE TRIGGER IF NOT EXISTS queue_calendar_task_insert
 AFTER INSERT ON tasks WHEN NEW.due_at IS NOT NULL

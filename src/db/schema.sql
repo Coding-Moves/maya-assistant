@@ -55,6 +55,14 @@ CREATE TABLE IF NOT EXISTS calendar_jobs (
   revision INTEGER NOT NULL DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS calendar_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+INSERT OR IGNORE INTO calendar_meta (key, value)
+VALUES ('instance_id', lower(hex(randomblob(16))));
+
 CREATE TRIGGER IF NOT EXISTS queue_calendar_task_insert
 AFTER INSERT ON tasks WHEN NEW.due_at IS NOT NULL
 BEGIN
