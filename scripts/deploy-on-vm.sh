@@ -55,6 +55,7 @@ cleanup() {
   result=$?
   if (( result != 0 && stopped )); then
     echo 'Deployment failed; restoring previous source' >&2
+    rm -rf "$app/src" "$app/scripts"
     tar -xzf "$backup" -C "$app" || true
     if [[ -d "$app/.deploy-old-node_modules" ]]; then
       rm -rf "$app/node_modules"
@@ -74,6 +75,10 @@ trap cleanup EXIT
 
 tar -xzf "$archive" --strip-components=1 --no-same-owner --no-same-permissions -C "$stage"
 chown -R maya:maya "$stage"
+[[ -d "$stage/src" && -d "$stage/scripts" && -f "$stage/package.json" && -f "$stage/package-lock.json" ]] || {
+  echo 'Release is missing required application files' >&2
+  exit 1
+}
 if (( check_only )); then
   echo "Validated release $revision"
   exit 0
@@ -93,6 +98,7 @@ if (( deps_changed )); then
   mv "$app/node_modules" "$app/.deploy-old-node_modules"
   mv "$stage/node_modules" "$app/node_modules"
 fi
+rm -rf "$app/src" "$app/scripts"
 runuser -u maya -- cp -a "$stage/." "$app/"
 printf '%s\n' "$revision" > "$app/.deployed-commit"
 chown maya:maya "$app/.deployed-commit"
