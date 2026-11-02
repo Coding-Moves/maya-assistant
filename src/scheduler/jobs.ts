@@ -5,6 +5,8 @@ import { syncCalendarOnce } from '../features/calendar.js';
 import { extractOnce } from '../features/extract.js';
 import { processPendingMedia } from '../features/media.js';
 import { runWeeklyPlan } from '../features/weeklyPlan.js';
+import { syncVuClassicTodo } from '../features/vu.js';
+import { sendToOwner } from '../channels/whatsapp/send.js';
 import { logger } from '../utils/logger.js';
 
 export type JobName = 'morning' | 'evening' | 'weekly';
@@ -16,6 +18,7 @@ interface JobDependencies {
   extract: typeof extractOnce;
   media: typeof processPendingMedia;
   calendar: typeof syncCalendarOnce;
+  vu: typeof syncVuClassicTodo;
   schedule: typeof cron.schedule;
   every: typeof setInterval;
   clear: typeof clearInterval;
@@ -46,10 +49,12 @@ export function startJobs(
   const extract = dependencies.extract ?? extractOnce;
   const media = dependencies.media ?? processPendingMedia;
   const calendar = dependencies.calendar ?? syncCalendarOnce;
+  const vu = dependencies.vu ?? syncVuClassicTodo;
   const schedule = dependencies.schedule ?? cron.schedule;
   const every = dependencies.every ?? setInterval;
   const clear = dependencies.clear ?? clearInterval;
   let extractionRunning = false;
+  let vuRunning = false;
   let stopping = false;
   let stopWork: Promise<void> | null = null;
   const pending = new Set<Promise<unknown>>();
@@ -93,6 +98,19 @@ export function startJobs(
   const runScheduledJob = (name: JobName) => {
     if (!stopping) track(runJob(name));
   };
+  const runVu = async () => {
+    if (stopping || vuRunning) return;
+    vuRunning = true;
+    try {
+      const counts = await vu();
+      logger.info({ ...counts }, 'VU Classic To Do sync completed');
+    } catch (error) {
+      logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'VU Classic To Do sync failed');
+      await sendToOwner('I couldn’t check your VU quiz and assignment deadlines today. Please check Classic To Do directly until I’m connected again.');
+    } finally {
+      vuRunning = false;
+    }
+  };
 
   const jobs = [
     schedule(config.MORNING_DIGEST_CRON, () => runScheduledJob('morning'), {
@@ -111,6 +129,15 @@ export function startJobs(
       name: 'maya-weekly',
     }),
   ];
+  if (config.VU_LMS_SYNC) {
+    jobs.push(schedule(config.VU_SYNC_CRON, () => {
+      if (!stopping) track(runVu());
+    }, {
+      timezone: config.TIMEZONE,
+      noOverlap: true,
+      name: 'maya-vu-classic-todo',
+    }));
+  }
   const extractionTimer = every(
     () => {
       if (!stopping) track(runExtraction());
