@@ -74,6 +74,8 @@ Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart
 
 To read JPEG, PNG, WebP, and PDF announcements, set `MEDIA_ENABLED=true`. Maya handles at most `MEDIA_BATCH_SIZE` files per extraction run and refuses files above `MEDIA_MAX_BYTES` (default 5 MB). Large files with a caption still contribute that caption. Media reading uses Gemini and can increase API usage. A failed item is retried three times, then quarantined and reported to you.
 
+Google Calendar sync is optional. To enable it, follow [the Calendar setup guide](docs/CALENDAR.md). Dated open tasks become Calendar events; changing a task updates its event, and completing or cancelling it removes the event. Sync runs with the extraction interval and retries failed requests. Task titles and details are sent to Google when enabled.
+
 For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage.
 
 To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages and tasks, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backup automation is deferred.
@@ -114,6 +116,7 @@ Everything lives in `.env`. The main ones:
 | `WEEKLY_PLAN_CRON` | When to send the weekly plan | `0 20 * * 5` |
 | `GEMINI_MODEL` | Which AI model to use | `gemini-3.5-flash` |
 | `MEDIA_ENABLED` | Read supported group images and PDFs with Gemini | `false` |
+| `CALENDAR_SYNC` | Sync dated open tasks with Google Calendar | `false` |
 
 The full list is in [`.env.example`](.env.example).
 

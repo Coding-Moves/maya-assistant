@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { config } from '../config/env.js';
 import { runDigest } from '../features/digests.js';
+import { syncCalendarOnce } from '../features/calendar.js';
 import { extractOnce } from '../features/extract.js';
 import { processPendingMedia } from '../features/media.js';
 import { runWeeklyPlan } from '../features/weeklyPlan.js';
@@ -14,6 +15,7 @@ const runningJobs = new Set<JobName>();
 interface JobDependencies {
   extract: typeof extractOnce;
   media: typeof processPendingMedia;
+  calendar: typeof syncCalendarOnce;
   schedule: typeof cron.schedule;
   every: typeof setInterval;
   clear: typeof clearInterval;
@@ -43,6 +45,7 @@ export function startJobs(
 ): () => Promise<void> {
   const extract = dependencies.extract ?? extractOnce;
   const media = dependencies.media ?? processPendingMedia;
+  const calendar = dependencies.calendar ?? syncCalendarOnce;
   const schedule = dependencies.schedule ?? cron.schedule;
   const every = dependencies.every ?? setInterval;
   const clear = dependencies.clear ?? clearInterval;
@@ -78,6 +81,12 @@ export function startJobs(
       );
       logger.debug({ err: error }, 'Extraction run failure details');
     } finally {
+      try {
+        await calendar();
+      } catch (error) {
+        logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Calendar run failed');
+        logger.debug({ err: error }, 'Calendar run failure details');
+      }
       extractionRunning = false;
     }
   };

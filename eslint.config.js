@@ -9,6 +9,7 @@ export default tseslint.config(js.configs.recommended, tseslint.configs.recommen
       console: 'readonly',
       setTimeout: 'readonly',
       setImmediate: 'readonly',
+      Response: 'readonly',
     },
   },
 }, {
