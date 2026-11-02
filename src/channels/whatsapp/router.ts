@@ -1,4 +1,4 @@
-import type { BaileysEventMap, GroupMetadata, WASocket } from 'baileys';
+import type { BaileysEventMap, GroupMetadata, WAMessage, WASocket } from 'baileys';
 import { config } from '../../config/env.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
 import { enqueueGroupMedia } from '../../features/media.js';
@@ -17,7 +17,9 @@ export async function waitForOwnerReplies(): Promise<void> {
   await Promise.allSettled(pendingOwnerReplies);
 }
 
-export function attachWhatsAppRouter(sock: WASocket): () => void {
+export type GroupTextHandler = (message: WAMessage, text: string, chatName: string | null) => void;
+
+export function attachWhatsAppRouter(sock: WASocket, onGroupText: GroupTextHandler = ingestGroupMessage): () => void {
   let active = true;
   const groupNames = new Map<string, string>();
   const rememberGroup = (group: Partial<GroupMetadata>) => {
@@ -77,16 +79,12 @@ export function attachWhatsAppRouter(sock: WASocket): () => void {
         try {
           if (enqueueGroupMedia(message, groupNames.get(chatId) ?? null)) continue;
           if (!text) continue;
-          const id = ingestGroupMessage(
+          onGroupText(
             message,
             text,
             groupNames.get(chatId) ?? null,
           );
-          if (id !== null)
-            logger.debug(
-              { chatId, messageId: message.key.id },
-              'Stored group message',
-            );
+          logger.debug({ chatId, messageId: message.key.id }, 'Received group message');
         } catch (error) {
           logger.error(
             {

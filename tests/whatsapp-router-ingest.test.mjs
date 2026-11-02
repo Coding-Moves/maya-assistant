@@ -13,6 +13,7 @@ const { migrate } = await import('../src/db/migrate.ts');
 const { parseMessageText } = await import('../src/channels/whatsapp/parse.ts');
 const { attachWhatsAppRouter } =
   await import('../src/channels/whatsapp/router.ts');
+const { normalizeGroupMessage } = await import('../src/features/ingest.ts');
 
 migrate();
 after(() => db.close());
@@ -49,6 +50,29 @@ test('extracts plain text and captions through ephemeral and view-once wrappers'
   );
   assert.equal(parseMessageText({ conversation: '   ' }), null);
   assert.equal(parseMessageText({ stickerMessage: {} }), null);
+});
+
+test('source callback receives a normalized allowlisted message only', () => {
+  const ev = new EventEmitter();
+  const items = [];
+  const detach = attachWhatsAppRouter({ ev }, (message, text, chatName) => {
+    const item = normalizeGroupMessage(message, text, chatName);
+    if (item) items.push(item);
+  });
+  try {
+    const message = (remoteJid) => ({
+      key: { id: 'source-1', remoteJid, fromMe: false },
+      message: { conversation: 'Quiz due Friday' },
+      messageTimestamp: 1_700_000_000,
+    });
+    ev.emit('messages.upsert', { type: 'notify', messages: [message('allowed@g.us'), message('blocked@g.us')] });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].source, 'whatsapp');
+    assert.equal(items[0].text, 'Quiz due Friday');
+    assert.equal(items[0].sentAt, '2023-11-14T22:13:20.000Z');
+  } finally {
+    detach();
+  }
 });
 
 test('stores only live allowlisted text, with metadata, UTC time, and deduplication', async () => {

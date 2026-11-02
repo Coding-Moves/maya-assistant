@@ -4,6 +4,7 @@ import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { acquireAuthSessionLock, AuthSessionInUseError } from './auth-lock.js';
 import { clearOwnerIdentity, configuredOwnerIdentity, resolveOwnerIdentity, setOwnerIdentity } from './identity.js';
+import type { GroupTextHandler } from './router.js';
 
 // Baileys may include raw WhatsApp nodes in warning/error logs.
 const baileysLogger = logger.child({ module: 'baileys' }, { level: 'silent' });
@@ -20,6 +21,7 @@ let releaseAuthSessionLock: (() => void) | null = null;
 let detachRouter: (() => void) | null = null;
 let flushActiveCredentials: (() => Promise<void>) | null = null;
 let pendingCredentialSave = Promise.resolve();
+let groupTextHandler: GroupTextHandler | undefined;
 
 export function getConnectedSocket(): WASocket | null {
   return socketOpen ? socket : null;
@@ -66,11 +68,12 @@ function scheduleReconnect(afterSave: Promise<void> = Promise.resolve()): void {
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     if (stopping) return;
-    void afterSave.then(connectToWhatsApp);
+    void afterSave.then(() => connectToWhatsApp());
   }, delayMs);
 }
 
-export function connectToWhatsApp(): Promise<void> {
+export function connectToWhatsApp(onGroupText?: GroupTextHandler): Promise<void> {
+  if (onGroupText) groupTextHandler = onGroupText;
   if (stopping || socket || reconnectTimer) return Promise.resolve();
   if (connectWork) return connectWork;
   connectWork = startConnection().finally(() => {
@@ -97,7 +100,7 @@ async function startConnection(): Promise<void> {
     }
     socket = nextSocket;
     socketOpen = false;
-    detachRouter = attachWhatsAppRouter(nextSocket);
+    detachRouter = attachWhatsAppRouter(nextSocket, groupTextHandler);
     flushActiveCredentials = flushCredentials;
 
     nextSocket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
