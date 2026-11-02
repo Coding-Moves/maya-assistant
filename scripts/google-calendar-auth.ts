@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import 'dotenv/config';
 
@@ -55,6 +55,7 @@ const code = await new Promise<string>((resolve, reject) => {
 
 const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
   method: 'POST',
+  signal: AbortSignal.timeout(10_000),
   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   body: new URLSearchParams({
     code,
@@ -70,9 +71,12 @@ const token = await tokenResponse.json() as { refresh_token?: string };
 if (!token.refresh_token) throw new Error('Google did not issue a refresh token; check OAuth consent and retry');
 const env = readFileSync('.env', 'utf8');
 const line = `GOOGLE_REFRESH_TOKEN=${token.refresh_token}`;
-const updated = /^GOOGLE_REFRESH_TOKEN=.*$/m.test(env)
-  ? env.replace(/^GOOGLE_REFRESH_TOKEN=.*$/m, line)
-  : `${env.trimEnd()}\n${line}\n`;
-writeFileSync('.env', updated, { mode: 0o600 });
-chmodSync('.env', 0o600);
+const updated = `${env.split(/\r?\n/).filter((entry) => !/^GOOGLE_REFRESH_TOKEN=/.test(entry)).join('\n').trimEnd()}\n${line}\n`;
+const tempPath = `.env.tmp-${randomBytes(8).toString('hex')}`;
+try {
+  writeFileSync(tempPath, updated, { mode: 0o600, flag: 'wx' });
+  renameSync(tempPath, '.env');
+} finally {
+  rmSync(tempPath, { force: true });
+}
 console.log('Saved GOOGLE_REFRESH_TOKEN to .env. Keep this file private.');
