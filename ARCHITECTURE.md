@@ -26,6 +26,7 @@ flowchart TD
     DB --> E[Extractor job, every N min]
     E --> AI[Gemini, structured JSON]
     AI --> T[(SQLite: tasks)]
+    VU[VU Classic To Do: optional daily read / manual CSV] --> T
     T --> S[Scheduler: morning / evening / weekly]
     T --> Q
     Q --> AI
@@ -45,7 +46,7 @@ flowchart TD
 - **One way out.** Only `sendToOwner()` can send messages. This is the main safety rule.
 - **Loop guard.** Self mode keeps the `🤖 <BOT_NAME>:` prefix and ignores it on input. Separate mode sends plain text and ignores Maya's outgoing messages through `key.fromMe`.
 - **Status isolation.** In separate mode, Maya marks only the verified owner's Status as viewed and sends a short private comment through `sendToOwner()` when it has readable text, a caption, or supported photo/video media. Status content goes to Gemini for that comment only; it is not stored or used for task extraction or future answers. Photo/video downloads are bounded by `MEDIA_MAX_BYTES`. Unsupported or oversized media without a caption is viewed without a comment. Other people's Status and all other broadcasts are ignored. An alternate PN/LID on a broadcast message never makes it an owner chat.
-- **Sources are pluggable.** `Source<T>` owns an input lifecycle and emits normalized items. WhatsApp emits group messages into `messages`; the VU Classic To Do importer emits structured quiz/assignment rows into `tasks` through a source ID mapping. No VU credentials or portal polling are involved.
+- **Sources are pluggable.** `Source<T>` owns an input lifecycle and emits normalized items. WhatsApp emits group messages into `messages`; the VU CSV importer and optional daily portal reader normalize only Classic To Do quizzes and assignments and upsert them through the same source ID mapping. The portal reader opens a fresh headless browser for each check and does not retain a login session.
 
 ## Tech stack
 
@@ -58,6 +59,7 @@ flowchart TD
 | AI | `@google/genai` | Model from `GEMINI_MODEL` |
 | Validation | `zod` | For env and AI output |
 | Scheduler | `node-cron` | Always pass `timezone` |
+| Optional VU reader | `playwright` + Chromium | Official LMS sign-in in a fresh browser; no CAPTCHA bypass |
 | Logging | `pino` | Application logs; Baileys logging is silent to avoid raw WhatsApp payloads |
 | Lint/format | `eslint` + `prettier` | |
 
