@@ -44,7 +44,11 @@ export async function resolveOwnerIdentity(sock: WASocket): Promise<OwnerIdentit
     const lid = normalizedUserJid(await sock.signalRepository.lidMapping.getLIDForPN(identity.chatJid));
     if (lid && isLidUser(lid)) identity.knownJids.add(lid);
   } catch (error) {
-    logger.warn({ err: error }, 'Could not resolve owner LID; only the configured phone JID will match');
+    logger.warn(
+      { errorType: error instanceof Error ? error.name : 'unknown' },
+      'Could not resolve owner LID; only the configured phone JID will match',
+    );
+    logger.debug({ err: error }, 'Owner LID lookup failure details');
   }
   return identity;
 }

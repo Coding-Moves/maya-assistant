@@ -5,7 +5,8 @@ import { logger } from '../../utils/logger.js';
 import { acquireAuthSessionLock, AuthSessionInUseError } from './auth-lock.js';
 import { clearOwnerIdentity, configuredOwnerIdentity, resolveOwnerIdentity, setOwnerIdentity } from './identity.js';
 
-const baileysLogger = logger.child({ module: 'baileys' }, { level: 'warn' });
+// Baileys may include raw WhatsApp nodes in warning/error logs.
+const baileysLogger = logger.child({ module: 'baileys' }, { level: 'silent' });
 const maxReconnectDelayMs = 5 * 60 * 1000;
 
 let socket: WASocket | null = null;
@@ -39,7 +40,11 @@ export async function createWhatsAppSocket(): Promise<{
   let pendingSave = Promise.resolve();
   socket.ev.on('creds.update', () => {
     pendingSave = pendingSave.then(saveCreds).catch((error: unknown) => {
-      logger.error({ err: error }, 'Could not save WhatsApp credentials');
+      logger.error(
+        { errorType: error instanceof Error ? error.name : 'unknown' },
+        'Could not save WhatsApp credentials',
+      );
+      logger.debug({ err: error }, 'Credential save failure details');
     });
   });
 
@@ -110,7 +115,11 @@ async function startConnection(): Promise<void> {
         }).catch((error: unknown) => {
           if (socket !== nextSocket) return;
           clearOwnerIdentity();
-          logger.error({ err: error }, 'Could not resolve owner identity');
+          logger.error(
+            { errorType: error instanceof Error ? error.name : 'unknown' },
+            'Could not resolve owner identity',
+          );
+          logger.debug({ err: error }, 'Owner identity failure details');
         });
       }
 
@@ -138,7 +147,11 @@ async function startConnection(): Promise<void> {
     socket = null;
     socketOpen = false;
     clearOwnerIdentity();
-    logger.error({ err: error }, 'Could not start WhatsApp connection');
+    logger.error(
+      { errorType: error instanceof Error ? error.name : 'unknown' },
+      'Could not start WhatsApp connection',
+    );
+    logger.debug({ err: error }, 'WhatsApp connection failure details');
     if (stopping || error instanceof AuthSessionInUseError) throw error;
     scheduleReconnect();
   }

@@ -49,7 +49,7 @@ flowchart TD
 | AI | `@google/genai` | Model from `GEMINI_MODEL` |
 | Validation | `zod` | For env and AI output |
 | Scheduler | `node-cron` | Always pass `timezone` |
-| Logging | `pino` | Same logger Baileys uses |
+| Logging | `pino` | Application logs; Baileys logging is silent to avoid raw WhatsApp payloads |
 | Lint/format | `eslint` + `prettier` | |
 
 ## Repository structure
