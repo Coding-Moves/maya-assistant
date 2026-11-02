@@ -93,6 +93,14 @@ function upsert(item: VuItem): 'created' | 'updated' | 'unchanged' {
   return 'updated';
 }
 
+export function upsertVuItems(items: VuItem[]): { created: number; updated: number; unchanged: number } {
+  return db.transaction(() => {
+    const counts = { created: 0, updated: 0, unchanged: 0 };
+    for (const item of items) counts[upsert(item)]++;
+    return counts;
+  })();
+}
+
 export class VuClassicTodoSource implements Source<VuItem> {
   counts = { created: 0, updated: 0, unchanged: 0 };
   constructor(private readonly path: string) {}
@@ -100,14 +108,8 @@ export class VuClassicTodoSource implements Source<VuItem> {
   async start(emit: (item: VuItem) => void = () => {}): Promise<void> {
     if (statSync(this.path).size > 1_000_000) throw new Error('VU CSV must be under 1 MB');
     const items = normalizedItems(readFileSync(this.path, 'utf8'));
-    this.counts = db.transaction(() => {
-      const counts = { created: 0, updated: 0, unchanged: 0 };
-      for (const item of items) {
-        emit(item);
-        counts[upsert(item)]++;
-      }
-      return counts;
-    })();
+    for (const item of items) emit(item);
+    this.counts = upsertVuItems(items);
   }
 
   async stop(): Promise<void> {}

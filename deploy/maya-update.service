@@ -1,0 +1,9 @@
+[Unit]
+Description=Check GitHub CI and deploy Maya main
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/maya-check-deploy
+TimeoutStartSec=20min

@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for a tested Maya main commit every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+Unit=maya-update.service
+
+[Install]
+WantedBy=timers.target

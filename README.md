@@ -2,7 +2,7 @@
 
 **Your personal WhatsApp assistant that never misses a deadline.**
 
-**Development status:** Core and Phases 2–5 are implemented. Media reading and Google Calendar require opt-in setup; VU Classic To Do uses a manual import. Live checks for Calendar and imported VU items remain with the owner.
+**Development status:** Core and Phases 2–5 are implemented. Media reading, Google Calendar, and daily VU Classic To Do checks require opt-in setup. Live checks for Calendar and VU login remain with the owner.
 
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
@@ -20,7 +20,7 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
 - 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
 - 👀 **Views only your WhatsApp Status** in separate mode and sends you a short private comment when she can read its text, caption, photo, or supported video. She does not store Status content or turn it into tasks, and ignores other people's Status updates. Photo and video comments send the media to Gemini and use the configured `MEDIA_MAX_BYTES` limit, independently of `MEDIA_ENABLED` (which controls group media). Unsupported or oversized media without a caption is viewed without a comment.
-- 📚 **Imports VU Classic To Do deadlines** for quizzes and assignments from a CSV you provide; no VU login is stored.
+- 📚 **Tracks VU Classic To Do deadlines** for quizzes and assignments through an optional daily portal check or a manual CSV import.
 - 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; selected group text is sent to Gemini for analysis.
 - 💸 **API costs depend on your Gemini plan and usage.** Check your model's pricing and set a budget alert before leaving Maya running.
 
@@ -78,7 +78,7 @@ To read JPEG, PNG, WebP, and PDF announcements, set `MEDIA_ENABLED=true`. Maya h
 
 Google Calendar sync is optional. To enable it, follow [the Calendar setup guide](docs/CALENDAR.md). Dated open tasks become Calendar events; changing a task updates its event, and completing or cancelling it removes the event. Sync runs with the extraction interval and retries failed requests. Task titles and details are sent to Google when enabled.
 
-VU students can import only assignment and quiz deadlines from Classic To Do. Follow [the VU import guide](docs/VU-CLASSIC-TODO.md). Maya does not log in to VU, poll the portal, or read bell/notice-board items.
+VU students can enable an optional daily check of only the assignment and quiz tables in Classic To Do, or continue using the manual CSV importer. Follow [the VU setup guide](docs/VU-CLASSIC-TODO.md). The automatic check requires private LMS credentials and a Chromium browser on the host; Maya does not read bell, notice-board, or GDB items.
 
 For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage.
 
