@@ -39,7 +39,7 @@ export function completeMediaJob(messageId: number, text: string): void {
 
 export function skipMediaJob(messageId: number): void {
   db.transaction(() => {
-    const updated = db.prepare('UPDATE messages SET processed = 1 WHERE id = ? AND processed = 0')
+    const updated = db.prepare("UPDATE messages SET text = '', processed = 1 WHERE id = ? AND processed = 0")
       .run(checkedId(messageId)).changes;
     if (updated !== 1) throw new Error('Pending media message is unavailable');
     db.prepare('DELETE FROM media_jobs WHERE message_id = ?').run(messageId);
@@ -56,7 +56,7 @@ export function failMediaJob(messageId: number): boolean {
     ).get(messageId);
     if (!job || job.attempts < 3) return false;
     const failureBatchId = Number(db.prepare('INSERT INTO extraction_failures DEFAULT VALUES').run().lastInsertRowid);
-    const updated = db.prepare('UPDATE messages SET processed = -1, failure_batch_id = ? WHERE id = ? AND processed = 0')
+    const updated = db.prepare("UPDATE messages SET text = '', processed = -1, failure_batch_id = ? WHERE id = ? AND processed = 0")
       .run(failureBatchId, messageId).changes;
     if (updated !== 1) throw new Error('Pending media message is unavailable');
     db.prepare('DELETE FROM media_jobs WHERE message_id = ?').run(messageId);

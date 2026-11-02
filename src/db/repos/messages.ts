@@ -165,6 +165,7 @@ export function recentMessages(chatIds: readonly string[], limit: number): Messa
     .prepare<unknown[], Message>(
       `SELECT ${messageColumns} FROM messages
        WHERE chat_id IN (${placeholders(chatIds.length)})
+         AND text <> ''
          AND NOT EXISTS (SELECT 1 FROM media_jobs WHERE media_jobs.message_id = messages.id)
        ORDER BY sent_at DESC, id DESC LIMIT ?`,
     )

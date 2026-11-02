@@ -12,7 +12,7 @@ process.env.MEDIA_MAX_BYTES = '5';
 
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
-const { getUnprocessed, pendingFailureBatches } = await import('../src/db/repos/messages.ts');
+const { getUnprocessed, pendingFailureBatches, recentMessages } = await import('../src/db/repos/messages.ts');
 const { pendingMediaJobs } = await import('../src/db/repos/media.ts');
 const { enqueueGroupMedia, processPendingMedia } = await import('../src/features/media.ts');
 const { attachWhatsAppRouter } = await import('../src/channels/whatsapp/router.ts');
@@ -86,21 +86,33 @@ test('skips images without academic text and uses a caption when oversized', asy
     recognize: async () => 'NO_TEXT',
   });
   assert.equal(db.prepare("SELECT processed FROM messages WHERE external_id = 'media-2'").get().processed, 1);
+  assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'media-2'").get().text, '');
+  assert.ok(!recentMessages(['allowed@g.us'], 20).some((message) => message.externalId === 'media-2'));
   enqueueGroupMedia(image('media-3', 'Assignment due Monday', 6), 'Class');
   assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'media-3'").get().text, 'Assignment due Monday');
+  enqueueGroupMedia(image('media-stream-over', 'Quiz on Tuesday', null), 'Class');
+  await processPendingMedia({
+    socket: {},
+    download: async () => Readable.from([Buffer.from('123456')]),
+    recognize: async () => { throw new Error('Should not call Gemini'); },
+  });
+  assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'media-stream-over'").get().text, 'Quiz on Tuesday');
+  assert.equal(pendingMediaJobs(10).length, 0);
 });
 
 test('quarantines a media item after three failed attempts and leaves no pending job', async () => {
   enqueueGroupMedia(image('media-4'), 'Class');
   const fail = () => processPendingMedia({
     socket: {},
-    download: async () => Readable.from([Buffer.from('123456')]),
+    download: async () => { throw new Error('download failed'); },
     recognize: async () => { throw new Error('Should not call Gemini'); },
   });
   await fail();
   await fail();
   await fail();
   assert.equal(db.prepare("SELECT processed FROM messages WHERE external_id = 'media-4'").get().processed, -1);
+  assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'media-4'").get().text, '');
+  assert.ok(!recentMessages(['allowed@g.us'], 20).some((message) => message.externalId === 'media-4'));
   assert.equal(pendingMediaJobs(10).length, 0);
   assert.equal(pendingFailureBatches().length, 1);
 });

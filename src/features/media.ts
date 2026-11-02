@@ -11,6 +11,8 @@ import { ingestGroupMessage } from './ingest.js';
 const mediaLogger = logger.child({ module: 'baileys-media' }, { level: 'silent' });
 const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
+class MediaTooLargeError extends Error {}
+
 interface MediaDetails {
   mimeType: string;
   caption: string | null;
@@ -86,7 +88,7 @@ export async function processPendingMedia(
       for await (const chunk of stream) {
         const bytes = Buffer.from(chunk);
         size += bytes.length;
-        if (size > config.MEDIA_MAX_BYTES) throw new Error('Media exceeds size limit');
+        if (size > config.MEDIA_MAX_BYTES) throw new MediaTooLargeError('Media exceeds size limit');
         chunks.push(bytes);
       }
       if (size === 0) throw new Error('Media download was empty');
@@ -99,6 +101,12 @@ export async function processPendingMedia(
       }
       logger.info({ messageId: job.messageId }, 'Group media read');
     } catch (error) {
+      if (error instanceof MediaTooLargeError) {
+        if (job.caption) completeMediaJob(job.messageId, job.caption);
+        else skipMediaJob(job.messageId);
+        logger.warn({ messageId: job.messageId }, 'Group media skipped: streamed size limit exceeded');
+        continue;
+      }
       const quarantined = failMediaJob(job.messageId);
       logger.error(
         { messageId: job.messageId, quarantined, errorType: error instanceof Error ? error.name : 'unknown' },
