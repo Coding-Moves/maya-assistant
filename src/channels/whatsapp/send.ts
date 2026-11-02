@@ -96,6 +96,25 @@ export async function markOwnerMessageRead(key: WAMessageKey): Promise<void> {
   }
 }
 
+export async function markOwnerStatusRead(key: WAMessageKey): Promise<void> {
+  if (
+    config.BOT_MODE !== 'separate' ||
+    key.fromMe !== false ||
+    key.remoteJid !== 'status@broadcast' ||
+    !key.id ||
+    !key.participant ||
+    !isOwnerChat(key.participant)
+  ) return;
+
+  const sock = getConnectedSocket();
+  if (!sock) return;
+  try {
+    await sock.readMessages([key]);
+  } catch (error) {
+    logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not mark owner Status as viewed');
+  }
+}
+
 export async function sendToOwner(
   text: string,
   kind: 'reply' | 'progress' = 'reply',

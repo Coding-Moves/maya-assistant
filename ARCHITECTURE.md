@@ -41,7 +41,7 @@ flowchart TD
 - **Update, don't duplicate.** The extractor gets the list of open tasks with each batch, so it can update an existing task (a new date, or cancelled) instead of creating a second one.
 - **One way out.** Only `sendToOwner()` can send messages. This is the main safety rule.
 - **Loop guard.** Self mode keeps the `🤖 <BOT_NAME>:` prefix and ignores it on input. Separate mode sends plain text and ignores Maya's outgoing messages through `key.fromMe`.
-- **Status isolation.** WhatsApp Status and other broadcast messages are ignored before owner-chat matching. An alternate PN/LID on a broadcast message never makes it an owner chat, and Maya never marks statuses as read.
+- **Status isolation.** In separate mode, Maya marks only the verified owner's Status as viewed, without replying or storing it. Other people's Status and all other broadcasts are ignored. An alternate PN/LID on a broadcast message never makes it an owner chat.
 - **Sources are pluggable.** `Source<T>` owns an input lifecycle and emits normalized items. WhatsApp emits group messages into `messages`; the VU Classic To Do importer emits structured quiz/assignment rows into `tasks` through a source ID mapping. No VU credentials or portal polling are involved.
 
 ## Tech stack

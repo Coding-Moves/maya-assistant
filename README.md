@@ -19,6 +19,7 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 - 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it. Optional image and PDF reading covers supported media in the same chosen groups.
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
 - 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
+- 👀 **Views only your WhatsApp Status** in separate mode. She does not save or answer from Status content, and ignores other people's Status updates.
 - 📚 **Imports VU Classic To Do deadlines** for quizzes and assignments from a CSV you provide; no VU login is stored.
 - 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; selected group text is sent to Gemini for analysis.
 - 💸 **API costs depend on your Gemini plan and usage.** Check your model's pricing and set a budget alert before leaving Maya running.

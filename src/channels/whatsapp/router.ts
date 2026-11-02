@@ -1,4 +1,4 @@
-import { isJidBroadcast, type BaileysEventMap, type GroupMetadata, type WAMessage, type WASocket } from 'baileys';
+import { isJidBroadcast, isJidStatusBroadcast, type BaileysEventMap, type GroupMetadata, type WAMessage, type WAMessageKey, type WASocket } from 'baileys';
 import { config } from '../../config/env.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
 import { enqueueGroupMedia } from '../../features/media.js';
@@ -6,7 +6,7 @@ import { handleOwnerText } from '../../features/commands.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat, verifyOwnerLid } from './identity.js';
 import { parseMessageText } from './parse.js';
-import { markOwnerMessageRead } from './send.js';
+import { markOwnerMessageRead, markOwnerStatusRead } from './send.js';
 import { ownerInput } from './trigger.js';
 
 const allowedGroups = new Set(config.GROUP_ALLOWLIST);
@@ -19,7 +19,11 @@ export async function waitForOwnerReplies(): Promise<void> {
 
 export type GroupTextHandler = (message: WAMessage, text: string, chatName: string | null) => void;
 
-export function attachWhatsAppRouter(sock: WASocket, onGroupText: GroupTextHandler = ingestGroupMessage): () => void {
+export function attachWhatsAppRouter(
+  sock: WASocket,
+  onGroupText: GroupTextHandler = ingestGroupMessage,
+  viewOwnerStatus: (key: WAMessageKey) => Promise<void> = markOwnerStatusRead,
+): () => void {
   let active = true;
   const groupNames = new Map<string, string>();
   const rememberGroup = (group: Partial<GroupMetadata>) => {
@@ -62,6 +66,11 @@ export function attachWhatsAppRouter(sock: WASocket, onGroupText: GroupTextHandl
     pendingOwnerReplies.add(reply);
     void reply.finally(() => pendingOwnerReplies.delete(reply));
   };
+  const viewStatus = (key: WAMessageKey) => {
+    void viewOwnerStatus(key).catch((error: unknown) => {
+      logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not view owner Status');
+    });
+  };
   const onMessages = ({
     messages,
     type,
@@ -70,7 +79,22 @@ export function attachWhatsAppRouter(sock: WASocket, onGroupText: GroupTextHandl
     for (const message of messages) {
       const chatId = message.key.remoteJid;
       if (!chatId) continue;
-      // Statuses can carry the owner's PN/LID in remoteJidAlt; they are not direct chats.
+      if (isJidStatusBroadcast(chatId)) {
+        const author = message.key.participant;
+        if (config.BOT_MODE === 'separate' && message.key.fromMe === false && author) {
+          if (isOwnerChat(author)) {
+            viewStatus(message.key);
+          } else {
+            void verifyOwnerLid(sock, author).then((verified) => {
+              if (active && verified) viewStatus(message.key);
+            }).catch((error: unknown) => {
+              logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not verify Status author');
+            });
+          }
+        }
+        continue;
+      }
+      // Other broadcasts and Status-shaped messages are never direct chats.
       if (message.broadcast === true || isJidBroadcast(chatId)) continue;
       const text = parseMessageText(message.message);
       if (config.BOT_MODE === 'separate' && message.key.fromMe === true)
