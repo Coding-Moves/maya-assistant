@@ -1,5 +1,7 @@
 node_modules/
 data/
+__pycache__/
+*.pyc
 auth_info/
 .env*
 !.env.example

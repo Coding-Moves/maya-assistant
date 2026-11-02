@@ -36,6 +36,18 @@ WantedBy=multi-user.target
 
 Run `sudo systemctl daemon-reload && sudo systemctl enable --now maya`, then check `sudo systemctl status maya` and `sudo journalctl -u maya -n 30 --no-pager`. This VM already runs Maya with systemd; do not start PM2 or Docker on it at the same time.
 
+### Automatic deployment after merging to main
+
+`.github/workflows/deploy.yml` runs typecheck, lint, and tests on pull requests and on every push to `main`. The VM checks the latest successful `main` push run every ten minutes, then downloads that exact public commit from GitHub over HTTPS and restarts Maya. This keeps an SSH private key and the VM's other secrets out of GitHub Actions. The VM does not need Git. Failed or pending checks leave the running version in place. The timer runs only one deployment check at a time.
+
+Setup is one-time and must be done by the VM administrator:
+
+1. Install [`scripts/deploy-on-vm.sh`](../scripts/deploy-on-vm.sh) as root-owned `/usr/local/sbin/maya-deploy` (mode `0755`) and [`scripts/check-deploy.py`](../scripts/check-deploy.py) as root-owned `/usr/local/sbin/maya-check-deploy` (mode `0755`). The first script validates the archive, keeps `.env`, `auth_info/`, and `data/` out of the transfer, installs dependencies only when `package-lock.json` changes, restarts `maya`, and restores previous source if startup fails.
+2. Install [`deploy/maya-update.service`](../deploy/maya-update.service) and [`deploy/maya-update.timer`](../deploy/maya-update.timer) into `/etc/systemd/system/`, run `sudo systemctl daemon-reload`, then `sudo systemctl enable --now maya-update.timer`.
+3. Check `systemctl list-timers maya-update.timer` and `sudo journalctl -u maya-update.service -n 30 --no-pager`. The timer waits for a successful GitHub Actions run after each merge. The first workflow run begins when this setup is merged into `main`.
+
+The workflow never receives the Gemini key, WhatsApp session, SQLite database, VU credentials, or an SSH key. Those remain on the VM. Check the Actions run and `sudo systemctl status maya` after the first merge. A merge updates GitHub first; the VM updates after CI succeeds and the next timer check (normally within ten minutes).
+
 ## PM2 on another persistent host
 
 Install PM2 from npm on that host, run `npm ci`, and start `pm2 start ecosystem.config.cjs`. The ecosystem file uses a single Node process and gives Maya up to 65 seconds to finish shutdown. Arrange for PM2 to start on boot using its documented startup command. Keep the working directory and private files on persistent storage.
