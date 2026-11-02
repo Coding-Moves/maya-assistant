@@ -41,7 +41,7 @@ flowchart TD
 - **Update, don't duplicate.** The extractor gets the list of open tasks with each batch, so it can update an existing task (a new date, or cancelled) instead of creating a second one.
 - **One way out.** Only `sendToOwner()` can send messages. This is the main safety rule.
 - **Loop guard.** Self mode keeps the `🤖 <BOT_NAME>:` prefix and ignores it on input. Separate mode sends plain text and ignores Maya's outgoing messages through `key.fromMe`.
-- **Sources are pluggable (later).** WhatsApp is the first source. Future sources (LMS, email) write into the same `messages`/`tasks` tables, so reminders and Q&A work for all of them.
+- **Sources are pluggable.** `Source<T>` owns an input lifecycle and emits normalized items. WhatsApp emits group messages into `messages`; the VU Classic To Do importer emits structured quiz/assignment rows into `tasks` through a source ID mapping. No VU credentials or portal polling are involved.
 
 ## Tech stack
 
@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   title            TEXT NOT NULL,
   details          TEXT,
   due_at           TEXT,                   -- ISO UTC; NULL if no date
+  due_precision    TEXT NOT NULL DEFAULT 'time', -- date-only VU deadline has no known time
   calendar_event_id TEXT,                  -- deterministic Google Calendar event ID
   status           TEXT NOT NULL DEFAULT 'open',  -- open | done | cancelled
   reminded_evening INTEGER NOT NULL DEFAULT 0,
@@ -181,11 +182,18 @@ BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS queue_calendar_task_update
-AFTER UPDATE OF subject, type, title, details, due_at, status ON tasks
+AFTER UPDATE OF subject, type, title, details, due_at, due_precision, status ON tasks
 BEGIN
   INSERT INTO calendar_jobs (task_id) VALUES (NEW.id)
   ON CONFLICT(task_id) DO UPDATE SET revision = revision + 1;
 END;
+
+CREATE TABLE IF NOT EXISTS source_tasks (
+  source TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  task_id INTEGER NOT NULL UNIQUE REFERENCES tasks(id) ON DELETE CASCADE,
+  PRIMARY KEY (source, external_id)
+);
 ```
 
 Store times in **UTC**, and convert to `TIMEZONE` only when you show them or schedule something.

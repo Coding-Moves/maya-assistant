@@ -49,3 +49,16 @@ test('failed Google request leaves the job queued for retry', async () => {
     : new Response(null, { status: 503 }));
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM calendar_jobs WHERE task_id = ?').get(id).count, 1);
 });
+
+test('date-only VU task becomes an all-day event', async () => {
+  const id = createTask({ type: 'assignment', title: 'Assignment 3', dueAt: '2026-11-06T18:59:00.000Z', duePrecision: 'date' });
+  let event;
+  await syncCalendarOnce(async (url, init) => {
+    if (String(url).endsWith('/token')) return Response.json({ access_token: 'test-token', expires_in: 3600 });
+    if (init.method === 'POST') event = JSON.parse(init.body);
+    return new Response(null, { status: 200 });
+  });
+  assert.deepEqual(event.start, { date: '2026-11-06' });
+  assert.deepEqual(event.end, { date: '2026-11-07' });
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM calendar_jobs WHERE task_id = ?').get(id).count, 0);
+});

@@ -11,10 +11,10 @@ Steps marked 🙋 **Manual** are things a human has to do: scan a QR code, copy 
 | Phase | What | Status |
 |---|---|---|
 | **1. Core** | WhatsApp listener, task extraction, reminders, Q&A, self-chat mode | 🚧 In progress |
-| **2. Always on** | Second-number mode, run 24/7 (pm2 / Docker / free VM), DB backups | ⏳ |
-| **3. Media** | Read images and PDF announcements with Gemini vision | ⏳ |
-| **4. Calendar** | Sync tasks with due dates to Google Calendar | ⏳ |
-| **5. More sources** | Source plugin interface; first plugin: a university LMS | ⏳ |
+| **2. Always on** | Second-number mode, persistent VM, PM2/Docker options; automatic/off-host backups deferred by owner | ✅ |
+| **3. Media** | Opt-in images and PDFs from allowed groups via Gemini vision | ✅ (live media check pending) |
+| **4. Calendar** | Opt-in Google Calendar task sync | ✅ (owner OAuth/live check pending) |
+| **5. More sources** | Source interface and credential-free VU Classic To Do CSV import | ✅ (owner import pending) |
 | **6. Extras** | MCP server over the DB, multi-language support (e.g. Roman Urdu), simple web dashboard | 💡 Ideas |
 
 ---
@@ -235,8 +235,8 @@ Then run npm run typecheck and npm run lint ONCE and fix all issues. Commit. Do 
 1. **Second number:** test `BOT_MODE=separate` end-to-end (owner match by PN and LID).
 2. **Process manager:** add a `pm2` ecosystem file and a `Dockerfile` with volumes for `data/` and `auth_info/`.
 3. **Hosting guide:** document running on an old laptop, an old Android phone (Termux), or a free cloud VM. Hosts with a **persistent disk** are required, because SQLite and the session must survive restarts.
-4. **Daily DB backup** cron job.
-5. **Auth storage and privacy review:** reassess `useMultiFileAuthState` for long-running hosting and review the handling, retention, and Gemini transmission of group messages.
+4. **Daily DB backup:** deferred by owner; manual `npm run backup-db` remains available.
+5. **Auth storage and privacy review:** `useMultiFileAuthState` stays for this personal deployment. Keep session files private and persistent; restrict host access. Group text and opted-in media go to Gemini. Revisit retention and storage before expanding the deployment.
 
 ## Phase 3 — Media (outline)
 Download image and PDF announcements (allowlisted groups only, with a size limit), send them to Gemini vision, and save the extracted text as a message, so the normal extraction picks it up.
@@ -245,7 +245,7 @@ Download image and PDF announcements (allowlisted groups only, with a size limit
 OAuth for a single user, plus a `calendar_event_id` column on tasks. Create, update, and delete events when tasks change. Add `CALENDAR_SYNC=true` to enable it.
 
 ## Phase 5 — More sources (outline)
-Define a `Source` interface (`start()`, which emits normalized messages or tasks). Move WhatsApp behind it. First new plugin: an LMS (each university is different, so plugins live in `src/sources/<name>`).
+Define a `Source<T>` interface (`start(emit)`, `stop()`) and place WhatsApp behind it. The first additional source is a credential-free VU Classic To Do CSV importer in `src/sources/vu/`; it emits normalized quiz/assignment items and upserts tasks. It does not authenticate to, poll, or scrape the LMS. See [the VU guide](docs/VU-CLASSIC-TODO.md).
 
 ## Phase 6 — Ideas
 - MCP server (read-only) so AI assistants can ask "what's due?"

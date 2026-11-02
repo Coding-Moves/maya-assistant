@@ -1,6 +1,7 @@
 import { config } from '../config/env.js';
 import { db } from '../db/client.js';
 import { logger } from '../utils/logger.js';
+import { localDateInTimezone } from '../utils/time.js';
 
 interface CalendarJob {
   taskId: number;
@@ -10,6 +11,7 @@ interface CalendarJob {
   title: string;
   details: string | null;
   dueAt: string | null;
+  duePrecision: 'date' | 'time';
   status: string;
 }
 
@@ -51,6 +53,18 @@ async function calendarRequest(request: Request, method: string, path: string, b
 
 function eventBody(job: CalendarJob, eventId: string): object {
   const due = new Date(job.dueAt!);
+  if (job.duePrecision === 'date') {
+    const date = localDateInTimezone(due);
+    const next = new Date(`${date}T00:00:00.000Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    return {
+      id: eventId,
+      summary: [job.subject, job.title].filter(Boolean).join(' — ').slice(0, 500),
+      description: (job.details ?? '').slice(0, 8000),
+      start: { date },
+      end: { date: next.toISOString().slice(0, 10) },
+    };
+  }
   return {
     id: eventId,
     summary: [job.subject, job.title].filter(Boolean).join(' — ').slice(0, 500),
@@ -94,7 +108,7 @@ export async function syncCalendarOnce(request: Request = fetch): Promise<void> 
   if (!config.CALENDAR_SYNC) return;
   const jobs = db.prepare<[], CalendarJob>(`
     SELECT j.task_id AS taskId, j.revision, t.calendar_event_id AS eventId,
-      t.subject, t.title, t.details, t.due_at AS dueAt, t.status
+      t.subject, t.title, t.details, t.due_at AS dueAt, t.due_precision AS duePrecision, t.status
     FROM calendar_jobs j JOIN tasks t ON t.id = j.task_id
     ORDER BY j.task_id LIMIT 20
   `).all();

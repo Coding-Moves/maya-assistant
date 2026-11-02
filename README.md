@@ -2,7 +2,7 @@
 
 **Your personal WhatsApp assistant that never misses a deadline.**
 
-**Development status:** Phase 1 is implemented through Step 10, including graceful shutdown and manual SQLite backups. The one-day reminder check is still a manual validation step in [ROADMAP.md](ROADMAP.md).
+**Development status:** Core and Phases 2–5 are implemented. Media reading and Google Calendar require opt-in setup; VU Classic To Do uses a manual import. Live checks for Calendar and imported VU items remain with the owner.
 
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
@@ -19,6 +19,7 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 - 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it. Optional image and PDF reading covers supported media in the same chosen groups.
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
 - 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
+- 📚 **Imports VU Classic To Do deadlines** for quizzes and assignments from a CSV you provide; no VU login is stored.
 - 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; selected group text is sent to Gemini for analysis.
 - 💸 **API costs depend on your Gemini plan and usage.** Check your model's pricing and set a budget alert before leaving Maya running.
 
@@ -76,6 +77,8 @@ To read JPEG, PNG, WebP, and PDF announcements, set `MEDIA_ENABLED=true`. Maya h
 
 Google Calendar sync is optional. To enable it, follow [the Calendar setup guide](docs/CALENDAR.md). Dated open tasks become Calendar events; changing a task updates its event, and completing or cancelling it removes the event. Sync runs with the extraction interval and retries failed requests. Task titles and details are sent to Google when enabled.
 
+VU students can import only assignment and quiz deadlines from Classic To Do. Follow [the VU import guide](docs/VU-CLASSIC-TODO.md). Maya does not log in to VU, poll the portal, or read bell/notice-board items.
+
 For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage.
 
 To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages and tasks, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backup automation is deferred.
@@ -131,7 +134,7 @@ In self mode, include Maya's name or `@maya` in messages you want her to handle.
 
 ## What's coming
 
-Maya is young. Next up: reading images and PDF announcements, syncing deadlines to Google Calendar, connecting to university LMS portals, and running 24/7 on a free server. See [ROADMAP.md](ROADMAP.md).
+Maya is still experimental. See [ROADMAP.md](ROADMAP.md) for what is implemented and what still needs a manual live check.
 
 ## Use it, fork it, make it yours
 
@@ -147,4 +150,4 @@ MIT. Use it, change it, share it.
 
 ## Coding Moves Lab
 
-Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). Phase 1 features and hardening are implemented; the one-day reminder check remains.
+Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). The one-day reminder check and optional integrations need the owner's live validation.

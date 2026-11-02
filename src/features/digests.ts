@@ -1,21 +1,13 @@
 import { sendToOwner } from '../channels/whatsapp/send.js';
 import { config } from '../config/env.js';
 import { markReminded, openTasks } from '../db/repos/tasks.js';
-import { formatInTimezone } from '../utils/time.js';
+import { formatInTimezone, localDateInTimezone } from '../utils/time.js';
 
 export type DigestPeriod = 'morning' | 'evening';
 type SendDigest = (text: string) => Promise<boolean>;
 
 function localDay(date: Date): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: config.TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const value = (type: string) =>
-    parts.find((part) => part.type === type)?.value;
-  return `${value('year')}-${value('month')}-${value('day')}`;
+  return localDateInTimezone(date);
 }
 
 function nextDay(day: string): string {
@@ -43,7 +35,7 @@ export async function runDigest(
   const text = config.BOT_MODE === 'separate'
     ? warmDigest(period, tasks)
     : `Due ${period === 'morning' ? 'today' : 'tomorrow'}:\n${tasks.map(
-      (task) => `#${task.id} ${task.subject ? `${task.subject} — ` : ''}${task.title} (${formatInTimezone(new Date(task.dueAt!), { timeStyle: 'short' })})`,
+      (task) => `#${task.id} ${task.subject ? `${task.subject} — ` : ''}${task.title} (${task.duePrecision === 'date' ? 'time not specified' : formatInTimezone(new Date(task.dueAt!), { timeStyle: 'short' })})`,
     ).join('\n')}`;
   const sent = await send(text);
   if (!sent) return false;
@@ -58,7 +50,7 @@ function warmDigest(period: DigestPeriod, tasks: ReturnType<typeof openTasks>): 
     ? `Good morning${config.OWNER_NAME ? ` ${config.OWNER_NAME}` : ''} ☀️`
     : 'Good evening 🌙';
   const items = tasks.map((task) =>
-    `${task.subject ? `${task.subject} — ` : ''}${task.title} at ${formatInTimezone(new Date(task.dueAt!), { timeStyle: 'short' })}`,
+    `${task.subject ? `${task.subject} — ` : ''}${task.title}${task.duePrecision === 'date' ? ' (time not specified)' : ` at ${formatInTimezone(new Date(task.dueAt!), { timeStyle: 'short' })}`}`,
   );
   if (items.length === 1)
     return `${greeting} Just a gentle reminder — your ${items[0]} is ${when}. You've got this!`;

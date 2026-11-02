@@ -19,6 +19,7 @@ export interface Task {
   title: string;
   details: string | null;
   dueAt: string | null;
+  duePrecision: 'date' | 'time';
   status: 'open' | 'done' | 'cancelled';
   remindedEvening: 0 | 1;
   remindedMorning: 0 | 1;
@@ -33,6 +34,7 @@ export interface NewTask {
   title: string;
   details?: string | null;
   dueAt?: string | null;
+  duePrecision?: 'date' | 'time';
 }
 
 export interface TaskChanges {
@@ -42,11 +44,12 @@ export interface TaskChanges {
   title?: string;
   details?: string | null;
   dueAt?: string | null;
+  duePrecision?: 'date' | 'time';
 }
 
 const taskColumns = `
   id, source_msg_id AS sourceMsgId, last_msg_id AS lastMsgId,
-  subject, type, title, details, due_at AS dueAt, status,
+  subject, type, title, details, due_at AS dueAt, due_precision AS duePrecision, status,
   reminded_evening AS remindedEvening, reminded_morning AS remindedMorning,
   created_at AS createdAt, updated_at AS updatedAt
 `;
@@ -63,8 +66,8 @@ export function createTask(task: NewTask): number {
   const result = db
     .prepare(
       `INSERT INTO tasks
-        (source_msg_id, last_msg_id, subject, type, title, details, due_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        (source_msg_id, last_msg_id, subject, type, title, details, due_at, due_precision)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       sourceMsgId,
@@ -74,6 +77,7 @@ export function createTask(task: NewTask): number {
       task.title,
       task.details ?? null,
       task.dueAt == null ? null : normalizeUtcIso(task.dueAt),
+      task.duePrecision ?? 'time',
     );
   return Number(result.lastInsertRowid);
 }
@@ -107,6 +111,10 @@ export function updateTask(id: number, changes: TaskChanges): boolean {
     assignments.push('reminded_morning = CASE WHEN due_at IS NOT ? THEN 0 ELSE reminded_morning END');
     assignments.push('due_at = ?');
     values.push(dueAt, dueAt, dueAt);
+  }
+  if (changes.duePrecision !== undefined) {
+    assignments.push('due_precision = ?');
+    values.push(changes.duePrecision);
   }
 
   return (

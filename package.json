@@ -12,6 +12,7 @@
     "list-groups": "tsx scripts/list-groups.ts",
     "backup-db": "tsx scripts/backup-db.ts",
     "calendar-auth": "tsx scripts/google-calendar-auth.ts",
+    "import-vu": "tsx scripts/import-vu.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
