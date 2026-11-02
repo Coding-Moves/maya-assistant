@@ -1,4 +1,4 @@
-import type { BaileysEventMap, GroupMetadata, WAMessage, WASocket } from 'baileys';
+import { isJidBroadcast, type BaileysEventMap, type GroupMetadata, type WAMessage, type WASocket } from 'baileys';
 import { config } from '../../config/env.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
 import { enqueueGroupMedia } from '../../features/media.js';
@@ -70,6 +70,8 @@ export function attachWhatsAppRouter(sock: WASocket, onGroupText: GroupTextHandl
     for (const message of messages) {
       const chatId = message.key.remoteJid;
       if (!chatId) continue;
+      // Statuses can carry the owner's PN/LID in remoteJidAlt; they are not direct chats.
+      if (message.broadcast === true || isJidBroadcast(chatId)) continue;
       const text = parseMessageText(message.message);
       if (config.BOT_MODE === 'separate' && message.key.fromMe === true)
         continue;

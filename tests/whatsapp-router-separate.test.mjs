@@ -59,6 +59,10 @@ test('separate mode handles only inbound owner chat and ignores its own outgoing
         message('outgoing', '123@s.whatsapp.net', `done ${ids[2]}`, true),
         message('own-group', 'allowed@g.us', 'Outgoing from Maya', true),
         message('inbound-group', 'allowed@g.us', 'Quiz on Monday', false),
+        { ...message('status', 'status@broadcast', `done ${ids[4]}`, false),
+          key: { id: 'status', remoteJid: 'status@broadcast', remoteJidAlt: '123@s.whatsapp.net', fromMe: false },
+          broadcast: true },
+        { ...message('status-flag', '123@s.whatsapp.net', `done ${ids[4]}`, false), broadcast: true },
       ],
     });
 

@@ -21,6 +21,8 @@ test('separate mode recognizes the configured PN and resolved LID only', async (
   assert.equal(isOwnerChat('222@lid'), true);
   assert.equal(isOwnerChat('333@lid', '111@s.whatsapp.net'), true);
   assert.equal(isOwnerChat('333@lid'), false);
+  assert.equal(isOwnerChat('status@broadcast', '111@s.whatsapp.net'), false);
+  assert.equal(isOwnerChat('other@g.us', '111@s.whatsapp.net'), false);
 
   clearOwnerIdentity();
 });
