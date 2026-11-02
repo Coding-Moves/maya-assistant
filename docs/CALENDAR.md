@@ -1,6 +1,6 @@
 # Google Calendar setup
 
-Calendar sync is optional. Maya uses the Google Calendar API with an OAuth token for **one owner**. Task titles, details and deadlines are sent to Google only when `CALENDAR_SYNC=true`. Tasks without a due date have no event. A calendar event starts at the deadline and lasts 30 minutes; the deadline is the start time.
+Calendar sync is optional. Maya uses the Google Calendar API with an OAuth token for **one owner**. Task titles, details and deadlines are sent to Google only when `CALENDAR_SYNC=true`. Tasks without a due date have no event. A timed calendar event starts at the deadline and lasts 30 minutes; a date-only VU assignment gets an all-day event instead.
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), enable **Google Calendar API** in your project. Configure the OAuth consent screen, then create an OAuth client with application type **Desktop app**. Choose only your own account as a test user if the app is in Testing. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the local `.env`. Never paste them into chat or commit them.
 2. Stop local Maya if it uses the same WhatsApp session as your VM. Run `npm run calendar-auth` on your computer. Open the printed Google authorization URL on that same computer, approve access, and let the local callback finish. The helper uses the `calendar.events` scope, PKCE and a localhost callback; it saves the refresh token to the local `.env` with file mode `0600`.
