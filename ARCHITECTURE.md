@@ -92,7 +92,7 @@ maya-assistant/
 │       └── time.ts               # Timezone helpers, ISO formatting
 ├── scripts/
 │   ├── list-groups.ts            # Prints group names + JIDs
-│   └── backup-db.ts              # Copies the DB file with a timestamp
+│   └── backup-db.ts              # SQLite online backup; retains seven completed snapshots
 ├── data/                         # maya.db (git-ignored)
 ├── auth_info/                    # WhatsApp session (git-ignored, never commit)
 ├── .env.example
