@@ -153,10 +153,13 @@ async function startConnection(): Promise<void> {
     detachRouter = null;
     flushActiveCredentials = null;
     clearOwnerIdentity();
-    logger.error(
-      { errorType: error instanceof Error ? error.name : 'unknown' },
-      'Could not start WhatsApp connection',
-    );
+    if (error instanceof AuthSessionInUseError)
+      logger.error('WhatsApp session is already in use. Stop the other Maya process and retry.');
+    else
+      logger.error(
+        { errorType: error instanceof Error ? error.name : 'unknown' },
+        'Could not start WhatsApp connection',
+      );
     logger.debug({ err: error }, 'WhatsApp connection failure details');
     if (created) {
       try {
