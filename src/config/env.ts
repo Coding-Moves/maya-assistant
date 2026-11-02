@@ -42,6 +42,7 @@ const envSchema = z
     MORNING_DIGEST_CRON: cronExpression('0 8 * * *'),
     EVENING_DIGEST_CRON: cronExpression('0 20 * * *'),
     WEEKLY_PLAN_CRON: cronExpression('0 20 * * 5'),
+    VU_SYNC_CRON: cronExpression('0 6 * * *'),
     EXTRACT_INTERVAL_MIN: positiveInteger(10),
     GEMINI_API_KEY: z
       .string({ error: 'is required; add it to .env' })
@@ -58,6 +59,9 @@ const envSchema = z
     GOOGLE_CLIENT_SECRET: z.string().trim().default(''),
     GOOGLE_REFRESH_TOKEN: z.string().trim().default(''),
     GOOGLE_CALENDAR_ID: z.string().trim().min(1).default('primary'),
+    VU_LMS_SYNC: booleanFlag('false'),
+    VU_STUDENT_ID: z.string().trim().default(''),
+    VU_PASSWORD: z.string().default(''),
     MAX_REPLIES_PER_HOUR: positiveInteger(20),
     DATABASE_PATH: z.string().trim().min(1).default('./data/maya.db'),
     AUTH_DIR: z.string().trim().min(1).default('./auth_info'),
@@ -73,6 +77,9 @@ const envSchema = z
     }
     if (value.CALENDAR_SYNC && (!value.GOOGLE_CLIENT_ID || !value.GOOGLE_CLIENT_SECRET || !value.GOOGLE_REFRESH_TOKEN)) {
       context.addIssue({ code: 'custom', path: ['CALENDAR_SYNC'], message: 'requires GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN' });
+    }
+    if (value.VU_LMS_SYNC && (!value.VU_STUDENT_ID || !value.VU_PASSWORD)) {
+      context.addIssue({ code: 'custom', path: ['VU_LMS_SYNC'], message: 'requires VU_STUDENT_ID and VU_PASSWORD' });
     }
   });
 
