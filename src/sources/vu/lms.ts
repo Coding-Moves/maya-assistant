@@ -88,6 +88,15 @@ export async function fetchClassicTodoItems(): Promise<VuItem[]> {
       throw new Error('VU LMS login redirected outside the official site');
     await page.locator('#txtStudentID').fill(config.VU_STUDENT_ID);
     await page.locator('#txtPassword').fill(config.VU_PASSWORD);
+    try {
+      await page.waitForFunction(
+        () => Boolean(document.querySelector<HTMLInputElement>('[name="g-recaptcha-response"]')?.value),
+        undefined,
+        { timeout: 30_000 },
+      );
+    } catch {
+      throw new Error('VU LMS verification did not become ready');
+    }
     await page.locator('#ibtnLogin').click();
     try {
       await page.waitForURL((url) => /home/i.test(url.pathname), { timeout: 30_000 });
