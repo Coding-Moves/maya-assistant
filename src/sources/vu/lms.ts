@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium, type Page } from 'playwright';
 import { config } from '../../config/env.js';
 import { localDateTimeToUtc } from '../../utils/time.js';
 import type { VuItem } from './classic-todo.js';
@@ -15,6 +15,17 @@ export interface ClassicTodoTable {
 export interface ClassicTodoTables {
   assignments: ClassicTodoTable;
   quizzes: ClassicTodoTable;
+}
+
+async function readTable(page: Page, id: string): Promise<ClassicTodoTable> {
+  const rows = [];
+  const rowLocators = await page.locator(`#${id} tr`).all();
+  if (rowLocators.length > 501) throw new Error('VU Classic To Do table has too many rows');
+  for (const row of rowLocators) {
+    const cells = await row.locator(':scope > th, :scope > td').allInnerTexts();
+    rows.push(cells.map((cell) => cell.split(/\r?\n/, 1)[0]!.trim()));
+  }
+  return { headers: rows[0] ?? [], rows: rows.slice(1) };
 }
 
 function parseDueDate(value: string, kind: VuItem['kind']): Pick<VuItem, 'dueAt' | 'duePrecision'> {
@@ -77,6 +88,15 @@ export async function fetchClassicTodoItems(): Promise<VuItem[]> {
       throw new Error('VU LMS login redirected outside the official site');
     await page.locator('#txtStudentID').fill(config.VU_STUDENT_ID);
     await page.locator('#txtPassword').fill(config.VU_PASSWORD);
+    try {
+      await page.waitForFunction(
+        () => Boolean(document.querySelector<HTMLInputElement>('[name="g-recaptcha-response"]')?.value),
+        undefined,
+        { timeout: 30_000 },
+      );
+    } catch {
+      throw new Error('VU LMS verification did not become ready');
+    }
     await page.locator('#ibtnLogin').click();
     try {
       await page.waitForURL((url) => /home/i.test(url.pathname), { timeout: 30_000 });
@@ -89,22 +109,10 @@ export async function fetchClassicTodoItems(): Promise<VuItem[]> {
     await page.locator('#tabHClassic').click();
     await page.locator('#MainContent_gvAssignmentsToDo').waitFor({ state: 'attached' });
     await page.locator('#MainContent_gvQuizzesToDo').waitFor({ state: 'attached' });
-    const tables = await page.evaluate(() => {
-      const readTable = (id: string): ClassicTodoTable => {
-        const table = document.getElementById(id);
-        if (!table) throw new Error('VU Classic To Do table missing');
-        const rows = Array.from(table.querySelectorAll('tr'), (tr) =>
-          Array.from(tr.querySelectorAll(':scope > th, :scope > td'), (cell) =>
-            (cell as HTMLElement).innerText.split(/\r?\n/, 1)[0]!.trim(),
-          ),
-        );
-        return { headers: rows[0] ?? [], rows: rows.slice(1) };
-      };
-      return {
-        assignments: readTable('MainContent_gvAssignmentsToDo'),
-        quizzes: readTable('MainContent_gvQuizzesToDo'),
-      };
-    });
+    const tables = {
+      assignments: await readTable(page, 'MainContent_gvAssignmentsToDo'),
+      quizzes: await readTable(page, 'MainContent_gvQuizzesToDo'),
+    };
     return parseClassicTodoTables(tables);
   } finally {
     await browser.close();
