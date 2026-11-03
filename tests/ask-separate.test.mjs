@@ -7,9 +7,13 @@ process.env.OWNER_JID = '923001234567@s.whatsapp.net';
 process.env.OWNER_NAME = 'Muawiya';
 process.env.DATABASE_PATH = ':memory:';
 process.env.GROUP_ALLOWLIST = 'allowed@g.us';
+process.env.VU_LMS_SYNC = 'true';
+process.env.VU_STUDENT_ID = 'test-student';
+process.env.VU_PASSWORD = 'test-password';
 
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
+const { createTask } = await import('../src/db/repos/tasks.ts');
 const { ask, askPrompt } = await import('../src/features/ask.ts');
 
 migrate();
@@ -22,6 +26,17 @@ test('separate ask prompt requests a warm, honest reply in the owner language', 
   assert.match(prompt, /gentle older sister/);
   assert.match(prompt, /Never invent tasks/);
   assert.match(prompt, /cannot post in groups/);
+  assert.match(prompt, /configured to sign in on a schedule/);
+  assert.match(prompt, /checks are scheduled, not live during each chat/);
+});
+
+test('separate ask context identifies imported VU deadlines', () => {
+  const taskId = createTask({ type: 'quiz', subject: 'CS101', title: 'Quiz 1' });
+  db.prepare("INSERT INTO source_tasks (source, external_id, task_id) VALUES ('vu-classic-todo', ?, ?)")
+    .run('quiz:cs101:quiz 1', taskId);
+  const prompt = askPrompt('Can you read my VU quiz deadlines?');
+  assert.match(prompt, /"source":"vu-classic-todo"/);
+  assert.match(prompt, /"title":"Quiz 1"/);
 });
 
 test('slow separate answer uses typing and never sends thinking text', async () => {
