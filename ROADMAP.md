@@ -14,7 +14,7 @@ Steps marked 🙋 **Manual** are things a human has to do: scan a QR code, copy 
 | **2. Always on** | Second-number mode, persistent VM, PM2/Docker options; automatic/off-host backups deferred by owner | ✅ |
 | **3. Media** | Opt-in images and PDFs from allowed groups via Gemini vision | ✅ (live media check pending) |
 | **4. Calendar** | Opt-in Google Calendar task sync | ✅ (owner OAuth/live check pending) |
-| **5. More sources** | Source interface and VU Classic To Do CSV import; optional daily LMS check added later | ✅ (daily login live check pending) |
+| **5. More sources** | Source interface and VU Classic To Do CSV import; optional daily LMS check added later | ✅ (live LMS login and import verified; next scheduled run pending) |
 | **6. Extras** | MCP server over the DB, multi-language support (e.g. Roman Urdu), simple web dashboard | 💡 Ideas |
 
 ---

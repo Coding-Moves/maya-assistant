@@ -2,7 +2,7 @@
 
 **Your personal WhatsApp assistant that never misses a deadline.**
 
-**Development status:** Core and Phases 2–5 are implemented. Media reading, Google Calendar, and daily VU Classic To Do checks require opt-in setup. Live checks for Calendar and VU login remain with the owner.
+**Development status:** Core and Phases 2–5 are implemented. Media reading, Google Calendar, and daily VU Classic To Do checks require opt-in setup. Live VU login and import have been verified; the next unattended daily run still needs confirmation. The live Calendar check remains with the owner.
 
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
