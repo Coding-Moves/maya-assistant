@@ -5,6 +5,7 @@ process.env.GEMINI_API_KEY = 'test';
 process.env.BOT_MODE = 'self';
 process.env.DATABASE_PATH = ':memory:';
 process.env.GROUP_ALLOWLIST = 'allowed@g.us';
+process.env.MEDIA_ENABLED = 'true';
 
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
@@ -54,6 +55,8 @@ test('answers from allowlisted context', async () => {
   assert.match(prompt, /dueNext14Days/);
   assert.match(prompt, /About you:/);
   assert.match(prompt, /allowlisted WhatsApp groups/);
+  assert.match(prompt, /supported images and PDFs from those groups/);
+  assert.doesNotMatch(prompt, /supported images, audio, short video/);
   assert.match(prompt, /reminders and a weekly plan when the app is running/);
   assert.match(prompt, /Respond naturally to greetings and small talk/);
   assert.match(

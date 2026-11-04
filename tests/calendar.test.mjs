@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 
 process.env.GEMINI_API_KEY = 'test';
+process.env.BOT_MODE = 'self';
 process.env.DATABASE_PATH = ':memory:';
 process.env.CALENDAR_SYNC = 'true';
 process.env.GOOGLE_CLIENT_ID = 'test-client';
@@ -12,8 +13,15 @@ const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
 const { createTask, updateTask, markDone } = await import('../src/db/repos/tasks.ts');
 const { syncCalendarOnce } = await import('../src/features/calendar.ts');
+const { syncUpcomingCalendarEvents } = await import('../src/features/calendar-read.ts');
+const { remindImportantCalendarEvents } = await import('../src/features/calendar-reminders.ts');
 migrate();
 after(() => db.close());
+
+test('self mode keeps the existing outgoing-only Calendar behavior', async () => {
+  await syncUpcomingCalendarEvents(async () => { throw new Error('Self mode must not read Calendar events'); });
+  assert.equal(await remindImportantCalendarEvents(new Date(), async () => { throw new Error('Self mode must not send Calendar event reminders'); }), false);
+});
 
 test('invalid OAuth credentials stop the batch after one refresh attempt', async () => {
   const first = createTask({ type: 'quiz', title: 'First', dueAt: '2026-11-04T10:00:00.000Z' });

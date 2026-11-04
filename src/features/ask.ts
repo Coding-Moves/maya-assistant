@@ -3,7 +3,7 @@ import { sendToOwner, withOwnerTyping } from '../channels/whatsapp/send.js';
 import { config } from '../config/env.js';
 import { joinedGroups } from '../db/repos/groups.js';
 import { recentJoinedGroupMessages, recentMessages } from '../db/repos/messages.js';
-import { upcomingCalendarEvents } from './calendar-read.js';
+import { lastCalendarReadAt, upcomingCalendarEvents } from './calendar-read.js';
 import { openTasks, taskIdsForSource, tasksDueBetween } from '../db/repos/tasks.js';
 import { logger } from '../utils/logger.js';
 import { formatInTimezone } from '../utils/time.js';
@@ -15,6 +15,18 @@ type SendReply = (
   kind?: 'reply' | 'progress',
 ) => Promise<boolean>;
 type WithTyping = <T>(work: () => Promise<T>) => Promise<T>;
+
+function groupsNamedInQuestion(question: string, groups: ReturnType<typeof joinedGroups>): string[] {
+  const lower = question.toLocaleLowerCase();
+  const words = new Set(lower.match(/[\p{L}\p{N}]+/gu) ?? []);
+  const common = new Set(['group', 'chat', 'the', 'and', 'official']);
+  return groups.filter(({ name }) => {
+    if (!name) return false;
+    const groupName = name.toLocaleLowerCase();
+    return lower.includes(groupName) || (groupName.match(/[\p{L}\p{N}]+/gu) ?? [])
+      .some((word) => word.length >= 3 && !common.has(word) && words.has(word));
+  }).map(({ id }) => id);
+}
 
 async function generateWithSelfProgress(
   prompt: string,
@@ -41,10 +53,16 @@ async function generateWithSelfProgress(
 export function askPrompt(question: string, now = new Date()): string {
   const dueEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
   const groups = config.BOT_MODE === 'separate' ? joinedGroups() : [];
-  const matchingGroups = groups.filter((group) => group.name && question.toLocaleLowerCase().includes(group.name.toLocaleLowerCase()));
+  const matchingGroupIds = groupsNamedInQuestion(question, groups);
   const contextMessages = config.BOT_MODE === 'separate'
-    ? recentJoinedGroupMessages(matchingGroups.map((group) => group.id), config.ASK_CONTEXT_MESSAGES)
+    ? recentJoinedGroupMessages(matchingGroupIds, config.ASK_CONTEXT_MESSAGES)
     : recentMessages(config.GROUP_ALLOWLIST, config.ASK_CONTEXT_MESSAGES);
+  const calendarLastRead = config.BOT_MODE === 'separate' && config.CALENDAR_SYNC ? lastCalendarReadAt() : null;
+  const mediaCapability = !config.MEDIA_ENABLED
+    ? 'You read media captions only unless media reading is enabled.'
+    : config.BOT_MODE === 'separate'
+      ? 'You can read supported images, audio, short video, and PDFs up to the configured size limit.'
+      : 'You can read supported images and PDFs from those groups, up to the configured size limit.';
   const vuTaskIds = config.BOT_MODE === 'separate'
     ? taskIdsForSource('vu-classic-todo')
     : new Set<number>();
@@ -70,9 +88,11 @@ export function askPrompt(question: string, now = new Date()): string {
     config.BOT_MODE === 'separate'
       ? `You are ${config.BOT_NAME}, a kind, caring personal assistant chatting privately with ${config.OWNER_NAME || 'your owner'}. Sound like a gentle older sister: warm, calm, encouraging, and human. Use the owner's name occasionally, not in every reply.`
       : `You are ${config.BOT_NAME}, a private WhatsApp assistant answering your owner.`,
-    `About you: ${config.BOT_MODE === 'separate' ? 'From WhatsApp, you read all groups you have joined' : 'You read only allowlisted WhatsApp groups'} and extract quizzes, assignments, and deadlines into tasks. You answer questions about stored group messages and tasks. Your commands are help/?, task/tasks/list, and done/complete <id>${config.BOT_MODE === 'separate' ? ', plus groups' : ''}. You send morning and evening reminders and a weekly plan when the app is running. ${config.MEDIA_ENABLED ? 'You can read supported images, audio, short video, and PDFs up to the configured size limit.' : 'You read media captions only unless media reading is enabled.'} ${config.BOT_MODE === 'separate' ? "You view only your owner's WhatsApp Status and privately comment on readable text, captions, and supported photo or video. You do not store Status content or use it for task extraction or future answers. Other people's Status updates are ignored." : ''} You cannot post in groups or see messages from before you joined or while the app was off.`,
+    `About you: ${config.BOT_MODE === 'separate' ? 'From WhatsApp, you read all groups you have joined' : 'You read only allowlisted WhatsApp groups'} and extract quizzes, assignments, and deadlines into tasks. You answer questions about stored group messages and tasks. Your commands are help/?, task/tasks/list, and done/complete <id>${config.BOT_MODE === 'separate' ? ', plus groups' : ''}. You send morning and evening reminders and a weekly plan when the app is running. ${mediaCapability} ${config.BOT_MODE === 'separate' ? "You view only your owner's WhatsApp Status and privately comment on readable text, captions, and supported photo or video. You do not store Status content or use it for task extraction or future answers. Other people's Status updates are ignored." : ''} You cannot post in groups or see messages from before you joined or while the app was off.`,
     ...(config.BOT_MODE === 'separate' ? [config.CALENDAR_SYNC
-      ? 'Google Calendar: You create and update events for your own tasks, and read upcoming Calendar events from the latest hourly check. You can answer questions about those events. Only events with the word important in the title get a morning reminder. Calendar edits do not change your task database. Do not claim a live Calendar check during every chat.'
+      ? calendarLastRead
+        ? `Google Calendar: Dated Maya tasks are configured to sync to Calendar. Upcoming events were last read at ${calendarLastRead}; answer from that cached list and say when it may be stale. Only events with the word important in the title get a reminder on their day. Calendar edits do not change your task database. Do not claim a live Calendar check during every chat.`
+        : 'Google Calendar: Calendar sync is configured, but no successful upcoming-event read has happened yet. Do not claim to know current meetings. Dated Maya tasks are configured to sync to Calendar, but writes may still be queued. Calendar edits do not change your task database.'
       : 'Google Calendar: Calendar access is disabled in this running instance. Do not claim that you can read or update the owner’s Calendar.', config.VU_LMS_SYNC
       ? 'VU LMS: You are configured to sign in on a schedule and import only the owner\'s Classic To Do quizzes and assignments into tasks. You can answer questions about those imported deadlines. If asked whether you can read Classic To Do, say yes and explain that checks are scheduled, not live during each chat. Do not say WhatsApp groups are your only source. The latest check might fail; do not claim you can read bell notifications, GDBs, or other LMS pages.'
       : 'VU LMS: Automatic portal checking is disabled in this running instance. You cannot currently sign in to read Classic To Do, though previously imported VU tasks may still be stored. Do not claim live portal access.'] : []),
@@ -92,7 +112,7 @@ export function askPrompt(question: string, now = new Date()): string {
         now.toISOString(),
         dueEnd.toISOString(),
       ).map(summarizeTask),
-      ...(config.CALENDAR_SYNC ? { upcomingCalendarEvents: upcomingCalendarEvents(50, now).map(({ title, description, location, startAt, allDay, important }) => ({
+      ...(config.BOT_MODE === 'separate' && config.CALENDAR_SYNC ? { calendarLastReadAt: calendarLastRead, upcomingCalendarEvents: upcomingCalendarEvents(50, now).map(({ title, description, location, startAt, allDay, important }) => ({
         title, description: description?.slice(0, 500), location, startAt, allDay: Boolean(allDay), important: Boolean(important),
       })) } : {}),
       recentGroupMessages: contextMessages.map(({ id, chatId, chatName, senderName, sentAt, text }) => ({

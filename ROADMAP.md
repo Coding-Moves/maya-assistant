@@ -242,7 +242,7 @@ Then run npm run typecheck and npm run lint ONCE and fix all issues. Commit. Do 
 The original media phase covered images and PDFs from allowlisted groups. Separate mode now also handles voice notes, short videos, stickers, and text/CSV files from every joined group, plus direct owner media. A size limit still applies; other document types and long/large videos remain unsupported.
 
 ## Phase 4 — Google Calendar (outline)
-OAuth for a single user, plus a `calendar_event_id` column on tasks. Create, update, and delete events when tasks change. Maya also reads upcoming events hourly and privately reminds the owner once on the day of events whose title contains `important`, through the morning job or hourly check. Calendar edits do not change Maya tasks. Add `CALENDAR_SYNC=true` to enable it.
+OAuth for a single user, plus a `calendar_event_id` column on tasks. Create, update, and delete events when tasks change. In separate mode, Maya also reads upcoming events hourly and privately reminds the owner once on the day of events whose title contains `important`, through the morning job or hourly check. Calendar edits do not change Maya tasks. Add `CALENDAR_SYNC=true` to enable it.
 
 ## Phase 5 — More sources (outline)
 Define a `Source<T>` interface (`start(emit)`, `stop()`) and place WhatsApp behind it. The first additional source is a credential-free VU Classic To Do CSV importer in `src/sources/vu/`; it emits normalized quiz/assignment items and upserts tasks. It does not authenticate to, poll, or scrape the LMS. See [the VU guide](docs/VU-CLASSIC-TODO.md).

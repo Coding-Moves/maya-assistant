@@ -9,10 +9,10 @@ export async function remindImportantCalendarEvents(
   now = new Date(),
   send: typeof sendToOwner = sendToOwner,
 ): Promise<boolean> {
-  if (!config.CALENDAR_SYNC || running) return false;
+  if (!config.CALENDAR_SYNC || config.BOT_MODE !== 'separate' || running) return false;
   running = true;
   try {
-    const events = importantCalendarEventsOnDay(localDateInTimezone(now));
+    const events = importantCalendarEventsOnDay(localDateInTimezone(now), now);
     if (events.length === 0) return false;
     const lines = events.map((event) => event.allDay
       ? `• ${event.title} (all day)`

@@ -42,13 +42,20 @@ export function upcomingCalendarEvents(limit = 50, now = new Date()): CalendarEv
   ).all(now.toISOString(), localDateInTimezone(now), limit);
 }
 
-export function importantCalendarEventsOnDay(day: string): CalendarEvent[] {
-  return db.prepare<[string], CalendarEvent>(
+export function importantCalendarEventsOnDay(day: string, now = new Date()): CalendarEvent[] {
+  return db.prepare<[string, string], CalendarEvent>(
     `SELECT ${columns} FROM calendar_events
      WHERE local_day = ? AND important = 1 AND reminded_at IS NULL
+       AND (all_day = 1 OR start_at >= ?)
        AND NOT EXISTS (SELECT 1 FROM tasks WHERE tasks.calendar_event_id = calendar_events.id)
      ORDER BY start_at`,
-  ).all(day);
+  ).all(day, now.toISOString());
+}
+
+export function lastCalendarReadAt(): string | null {
+  return db.prepare<[], { value: string }>(
+    "SELECT value FROM calendar_meta WHERE key = 'last_events_read_at'",
+  ).get()?.value ?? null;
 }
 
 export function markCalendarEventReminded(id: string, startAt: string): void {
@@ -57,10 +64,8 @@ export function markCalendarEventReminded(id: string, startAt: string): void {
 }
 
 export async function syncUpcomingCalendarEvents(request: typeof fetch = fetch, now = new Date()): Promise<void> {
-  if (!config.CALENDAR_SYNC) return;
-  const last = db.prepare<[], { value: string }>(
-    "SELECT value FROM calendar_meta WHERE key = 'last_events_read_at'",
-  ).get()?.value;
+  if (!config.CALENDAR_SYNC || config.BOT_MODE !== 'separate') return;
+  const last = lastCalendarReadAt();
   if (last && now.getTime() - new Date(last).getTime() < 60 * 60_000) return;
 
   const start = new Date(now.getTime() - 24 * 60 * 60_000).toISOString();

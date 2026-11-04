@@ -20,7 +20,7 @@ test('separate mode stores every joined group and selects a named group for priv
   const ev = new EventEmitter();
   const sock = { ev, user: { id: 'bot@s.whatsapp.net', lid: 'bot@lid' }, groupFetchAllParticipating: async () => ({
     'class@g.us': { id: 'class@g.us', subject: 'Class' },
-    'family@g.us': { id: 'family@g.us', subject: 'Family' },
+    'family@g.us': { id: 'family@g.us', subject: 'Family Updates' },
   }) };
   const detach = attachWhatsAppRouter(sock);
   try {
@@ -36,7 +36,7 @@ test('separate mode stores every joined group and selects a named group for priv
       message('family-1', 'family@g.us', 'Dinner at auntie’s'),
       message('other-1', 'someone@s.whatsapp.net', 'private secret'),
     ] });
-    assert.deepEqual(joinedGroups().map(({ name }) => name), ['Class', 'Family']);
+    assert.deepEqual(joinedGroups().map(({ name }) => name), ['Class', 'Family Updates']);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM messages').get().count, 2);
     const prompt = askPrompt('What is going on in Family?');
     assert.match(prompt, /Dinner at auntie/);
