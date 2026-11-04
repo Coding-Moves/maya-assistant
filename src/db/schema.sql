@@ -13,6 +13,12 @@ CREATE TABLE IF NOT EXISTS messages (
   UNIQUE (source, chat_id, external_id)
 );
 
+CREATE TABLE IF NOT EXISTS groups (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  active INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS extraction_failures (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   failed_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),

@@ -1,5 +1,6 @@
 import { sendToOwner } from '../channels/whatsapp/send.js';
 import { config } from '../config/env.js';
+import { joinedGroups } from '../db/repos/groups.js';
 import { markDone, openTasks } from '../db/repos/tasks.js';
 import { runJob } from '../scheduler/jobs.js';
 import { formatTaskDue } from '../utils/time.js';
@@ -28,9 +29,16 @@ export async function handleOwnerText(
   if (lower === 'help' || lower === '?') {
     await send(
       config.BOT_MODE === 'separate'
-        ? 'I can keep an eye on your chosen groups, track deadlines, and remind you what is coming up. Ask me anything, or send help, tasks, or done followed by a task number.'
+        ? 'I can keep an eye on every group I’m in, track quizzes and deadlines, and remind you what is coming up. Ask about a group, or send groups, tasks, or done followed by a task number.'
         : 'Commands: help or ?, task/tasks/list, done/complete <id>. Ask me a question for anything else.',
     );
+    return;
+  }
+  if (config.BOT_MODE === 'separate' && (lower === 'groups' || lower === 'group')) {
+    const groups = joinedGroups();
+    await send(groups.length === 0
+      ? "I can't see any joined groups yet. I'll refresh the list when WhatsApp reconnects."
+      : `I'm in ${groups.length} group${groups.length === 1 ? '' : 's'}:\n${groups.map((group) => `• ${group.name ?? group.id}`).join('\n')}`);
     return;
   }
   if (lower === 'task' || lower === 'tasks' || lower === 'list') {

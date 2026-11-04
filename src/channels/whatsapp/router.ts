@@ -1,5 +1,6 @@
-import { isJidBroadcast, isJidStatusBroadcast, type BaileysEventMap, type GroupMetadata, type WAMessage, type WAMessageKey, type WASocket } from 'baileys';
+import { isJidBroadcast, isJidGroup, isJidStatusBroadcast, type BaileysEventMap, type GroupMetadata, type WAMessage, type WAMessageKey, type WASocket } from 'baileys';
 import { config } from '../../config/env.js';
+import { rememberGroup as storeGroup, replaceJoinedGroups } from '../../db/repos/groups.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
 import { enqueueGroupMedia } from '../../features/media.js';
 import { handleOwnerText } from '../../features/commands.js';
@@ -30,8 +31,9 @@ export function attachWhatsAppRouter(
   const handledStatusIds = new Set<string>();
   const groupNames = new Map<string, string>();
   const rememberGroup = (group: Partial<GroupMetadata>) => {
-    if (group.id && allowedGroups.has(group.id) && group.subject) {
-      groupNames.set(group.id, group.subject);
+    if (group.id && (config.BOT_MODE === 'separate' || allowedGroups.has(group.id))) {
+      if (group.subject) groupNames.set(group.id, group.subject);
+      if (config.BOT_MODE === 'separate') storeGroup(group.id, group.subject ?? null);
     }
   };
 
@@ -46,7 +48,9 @@ export function attachWhatsAppRouter(
     void sock
       .groupFetchAllParticipating()
       .then((groups) => {
+        if (!active) return;
         Object.values(groups).forEach(rememberGroup);
+        if (config.BOT_MODE === 'separate') replaceJoinedGroups(Object.values(groups).map((group) => ({ id: group.id, name: group.subject ?? null })));
       })
       .catch((error: unknown) => {
         logger.warn(
@@ -116,7 +120,7 @@ export function attachWhatsAppRouter(
         continue;
       if (config.BOT_MODE === 'self' && text?.startsWith(botPrefix)) continue;
 
-      if (allowedGroups.has(chatId)) {
+      if (isJidGroup(chatId) && (config.BOT_MODE === 'separate' || allowedGroups.has(chatId))) {
         try {
           if (enqueueGroupMedia(message, groupNames.get(chatId) ?? null)) continue;
           if (!text) continue;
