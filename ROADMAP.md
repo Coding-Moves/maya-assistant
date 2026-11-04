@@ -253,3 +253,7 @@ After the original Phase 5, an optional daily Classic To Do reader was requested
 - MCP server (read-only) so AI assistants can ask "what's due?"
 - Roman Urdu / Hindi / other language prompts
 - A small web dashboard
+
+## Post-roadmap foundation: saved memory (issue #10)
+
+Owner-saved permanent, semi-permanent, and temporary memories use separate SQLite tables, keyword search, and scoped confirmation for deletion. Image/PDF class timetables go through typed extraction, preview, correction, and an atomic version switch. See [the memory guide](docs/MEMORY.md). This foundation is independent of the later agentic owner-control and unified-context issues; ordinary free-form settings control and retrieval across every source belong to those later phases.
