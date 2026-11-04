@@ -14,6 +14,8 @@ process.env.VU_PASSWORD = 'test-password';
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
 const { createTask } = await import('../src/db/repos/tasks.ts');
+const { createMemory } = await import('../src/db/repos/memories.ts');
+const { createTimetableDraft, confirmTimetable } = await import('../src/db/repos/timetables.ts');
 const { ask, askPrompt } = await import('../src/features/ask.ts');
 
 migrate();
@@ -37,6 +39,21 @@ test('separate ask context identifies imported VU deadlines', () => {
   const prompt = askPrompt('Can you read my VU quiz deadlines?');
   assert.match(prompt, /"source":"vu-classic-todo"/);
   assert.match(prompt, /"title":"Quiz 1"/);
+});
+
+test('private questions receive bounded saved-memory and weekday timetable context', () => {
+  createMemory({ category: 'preference', title: 'Study preference', body: 'I study best in the morning',
+    lifecycle: 'permanent', sourceKind: 'owner_text' });
+  const { token } = createTimetableDraft({ is_timetable: true, title: 'Classes', valid_from: null, valid_until: null,
+    entries: [{ day_of_week: 2, start_local: '09:00', end_local: '10:00', subject: 'CS101', location: null, teacher: null, uncertainty: null },
+      { day_of_week: 3, start_local: '11:00', end_local: '12:00', subject: 'MTH501', location: null, teacher: null, uncertainty: null }] },
+  'owner@s.whatsapp.net', 'Asia/Karachi', 'media-1');
+  confirmTimetable(token, 'owner@s.whatsapp.net');
+  const memoryPrompt = askPrompt('What is my study preference?');
+  assert.match(memoryPrompt, /I study best in the morning/);
+  const timetablePrompt = askPrompt('What class do I have on Tuesday?');
+  assert.match(timetablePrompt, /"subject":"CS101"/);
+  assert.doesNotMatch(timetablePrompt, /"subject":"MTH501"/);
 });
 
 test('slow separate answer uses typing and never sends thinking text', async () => {

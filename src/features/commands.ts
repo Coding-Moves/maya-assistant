@@ -6,6 +6,7 @@ import { runJob } from '../scheduler/jobs.js';
 import { formatTaskDue } from '../utils/time.js';
 import { ask } from './ask.js';
 import { clearCompletionContext, handleNaturalDone } from './natural-done.js';
+import { handleMemoryCommand } from './memory.js';
 
 export async function handleOwnerText(
   text: string,
@@ -26,11 +27,17 @@ export async function handleOwnerText(
     clearCompletionContext();
   }
 
+  const memoryReply = handleMemoryCommand(input);
+  if (memoryReply !== null) {
+    await send(memoryReply);
+    return;
+  }
+
   if (lower === 'help' || lower === '?') {
     await send(
       config.BOT_MODE === 'separate'
-        ? `I can keep an eye on every group I’m in, track quizzes and deadlines, and remind you what is coming up.${config.CALENDAR_SYNC ? ' I can also check your upcoming Google Calendar events.' : ''} Ask about a group, or send groups, tasks, or done followed by a task number.`
-        : 'Commands: help or ?, task/tasks/list, done/complete <id>. Ask me a question for anything else.',
+        ? `I can keep an eye on every group I’m in, track quizzes and deadlines, and remind you what is coming up.${config.CALENDAR_SYNC ? ' I can also check your upcoming Google Calendar events.' : ''} I can keep saved memories and a class timetable too. Ask about a group, or send groups, tasks, done <number>, or memory help.`
+        : 'Commands: help or ?, task/tasks/list, done/complete <id>, memory help. Ask me a question for anything else.',
     );
     return;
   }
