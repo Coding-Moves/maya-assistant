@@ -160,6 +160,13 @@ export function openTasks(): Task[] {
     .all();
 }
 
+export function taskIdsForSource(source: string): Set<number> {
+  const rows = db.prepare<[string], { taskId: number }>(
+    'SELECT task_id AS taskId FROM source_tasks WHERE source = ?',
+  ).all(source);
+  return new Set(rows.map(({ taskId }) => taskId));
+}
+
 export function tasksDueBetween(startUtc: string, endUtc: string): Task[] {
   const start = normalizeUtcIso(startUtc);
   const end = normalizeUtcIso(endUtc);
