@@ -98,6 +98,95 @@ BEGIN
   ON CONFLICT(task_id) DO UPDATE SET revision = revision + 1;
 END;
 
+-- Owner-saved knowledge is separate from group messages and academic tasks.
+CREATE TABLE IF NOT EXISTS memory_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  lifecycle TEXT NOT NULL CHECK (lifecycle IN ('permanent', 'semi', 'temporary')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'review', 'completed', 'archived', 'draft')),
+  due_at TEXT,
+  expires_at TEXT,
+  review_at TEXT,
+  completed_at TEXT,
+  source_kind TEXT NOT NULL CHECK (source_kind IN ('owner_text', 'owner_media')),
+  source_ref TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  archived_at TEXT,
+  CHECK (lifecycle != 'semi' OR review_at IS NOT NULL OR expires_at IS NOT NULL),
+  CHECK (lifecycle != 'temporary' OR due_at IS NOT NULL OR expires_at IS NOT NULL),
+  CHECK (lifecycle != 'permanent' OR (due_at IS NULL AND expires_at IS NULL AND review_at IS NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_memory_lifecycle ON memory_items(lifecycle, status, category, id);
+CREATE INDEX IF NOT EXISTS idx_memory_expiry ON memory_items(lifecycle, status, due_at, expires_at);
+CREATE INDEX IF NOT EXISTS idx_memory_review ON memory_items(lifecycle, status, review_at);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+  title, body, content='memory_items', content_rowid='id', tokenize='unicode61 remove_diacritics 2'
+);
+CREATE TRIGGER IF NOT EXISTS memory_fts_insert AFTER INSERT ON memory_items BEGIN
+  INSERT INTO memory_fts(rowid, title, body) VALUES (new.id, new.title, new.body);
+END;
+CREATE TRIGGER IF NOT EXISTS memory_fts_delete AFTER DELETE ON memory_items BEGIN
+  INSERT INTO memory_fts(memory_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body);
+END;
+CREATE TRIGGER IF NOT EXISTS memory_fts_update AFTER UPDATE OF title, body ON memory_items BEGIN
+  INSERT INTO memory_fts(memory_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body);
+  INSERT INTO memory_fts(rowid, title, body) VALUES (new.id, new.title, new.body);
+END;
+
+CREATE TABLE IF NOT EXISTS memory_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  memory_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  at TEXT NOT NULL,
+  source_ref TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_memory_events_target ON memory_events(memory_id, id);
+
+CREATE TABLE IF NOT EXISTS timetable_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  memory_id INTEGER NOT NULL REFERENCES memory_items(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('draft', 'active', 'archived')),
+  timezone TEXT NOT NULL,
+  valid_from TEXT,
+  valid_until TEXT,
+  source_ref TEXT,
+  created_at TEXT NOT NULL,
+  confirmed_at TEXT,
+  UNIQUE(memory_id, version)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_timetable_active ON timetable_versions(memory_id) WHERE state = 'active';
+CREATE INDEX IF NOT EXISTS idx_timetable_versions ON timetable_versions(memory_id, version DESC);
+
+CREATE TABLE IF NOT EXISTS timetable_entries (
+  version_id INTEGER NOT NULL REFERENCES timetable_versions(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  day_of_week INTEGER CHECK (day_of_week BETWEEN 1 AND 7),
+  start_local TEXT,
+  end_local TEXT,
+  subject TEXT,
+  location TEXT,
+  teacher TEXT,
+  uncertainty TEXT,
+  PRIMARY KEY (version_id, position)
+);
+CREATE INDEX IF NOT EXISTS idx_timetable_day ON timetable_entries(version_id, day_of_week, start_local);
+
+CREATE TABLE IF NOT EXISTS memory_confirmations (
+  token TEXT PRIMARY KEY,
+  action TEXT NOT NULL CHECK (action IN ('delete', 'clear', 'timetable')),
+  actor_jid TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_memory_confirmations_expiry ON memory_confirmations(expires_at);
+
 CREATE TABLE IF NOT EXISTS source_tasks (
   source TEXT NOT NULL,
   external_id TEXT NOT NULL,
