@@ -23,3 +23,7 @@ export function joinedGroups(): JoinedGroup[] {
     'SELECT id, name FROM groups WHERE active = 1 ORDER BY name COLLATE NOCASE, id',
   ).all();
 }
+
+export function deactivateGroup(id: string): void {
+  db.prepare('UPDATE groups SET active = 0 WHERE id = ?').run(id);
+}

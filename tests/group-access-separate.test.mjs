@@ -18,7 +18,7 @@ after(() => db.close());
 
 test('separate mode stores every joined group and selects a named group for private Q&A', async () => {
   const ev = new EventEmitter();
-  const sock = { ev, groupFetchAllParticipating: async () => ({
+  const sock = { ev, user: { id: 'bot@s.whatsapp.net', lid: 'bot@lid' }, groupFetchAllParticipating: async () => ({
     'class@g.us': { id: 'class@g.us', subject: 'Class' },
     'family@g.us': { id: 'family@g.us', subject: 'Family' },
   }) };
@@ -42,5 +42,8 @@ test('separate mode stores every joined group and selects a named group for priv
     assert.match(prompt, /Dinner at auntie/);
     assert.doesNotMatch(prompt, /CS101 quiz is Friday/);
     assert.doesNotMatch(prompt, /private secret/);
+    ev.emit('group-participants.update', { id: 'family@g.us', action: 'remove', participants: [{ id: 'bot@lid' }] });
+    assert.deepEqual(joinedGroups().map(({ name }) => name), ['Class']);
+    assert.doesNotMatch(askPrompt('What is going on in Family?'), /Dinner at auntie/);
   } finally { detach(); }
 });

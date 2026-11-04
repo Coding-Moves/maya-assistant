@@ -1,6 +1,6 @@
-import { isJidBroadcast, isJidGroup, isJidStatusBroadcast, type BaileysEventMap, type GroupMetadata, type WAMessage, type WAMessageKey, type WASocket } from 'baileys';
+import { isJidBroadcast, isJidGroup, isJidStatusBroadcast, jidNormalizedUser, type BaileysEventMap, type GroupMetadata, type WAMessage, type WAMessageKey, type WASocket } from 'baileys';
 import { config } from '../../config/env.js';
-import { rememberGroup as storeGroup, replaceJoinedGroups } from '../../db/repos/groups.js';
+import { deactivateGroup, rememberGroup as storeGroup, replaceJoinedGroups } from '../../db/repos/groups.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
 import { enqueueGroupMedia } from '../../features/media.js';
 import { handleOwnerMedia } from '../../features/owner-media.js';
@@ -42,6 +42,23 @@ export function attachWhatsAppRouter(
     groups.forEach(rememberGroup);
   const onGroupsUpdate = (groups: Partial<GroupMetadata>[]) =>
     groups.forEach(rememberGroup);
+  const onParticipantsUpdate = ({ id, action, participants }: BaileysEventMap['group-participants.update']) => {
+    if (config.BOT_MODE !== 'separate' || (action !== 'add' && action !== 'remove')) return;
+    const ownJids = new Set([sock.user?.id, sock.user?.lid, sock.user?.phoneNumber]
+      .filter((jid): jid is string => Boolean(jid)).map(jidNormalizedUser));
+    if (!participants.some((participant) => [participant.id, participant.lid, participant.phoneNumber]
+      .some((jid) => jid && ownJids.has(jidNormalizedUser(jid))))) return;
+    if (action === 'remove') {
+      groupNames.delete(id);
+      deactivateGroup(id);
+    } else {
+      void sock.groupMetadata(id).then((group) => {
+        if (active) rememberGroup(group);
+      }).catch((error: unknown) => {
+        logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not refresh newly joined group');
+      });
+    }
+  };
   const onConnectionUpdate = ({
     connection,
   }: BaileysEventMap['connection.update']) => {
@@ -168,6 +185,7 @@ export function attachWhatsAppRouter(
 
   sock.ev.on('groups.upsert', onGroupsUpsert);
   sock.ev.on('groups.update', onGroupsUpdate);
+  sock.ev.on('group-participants.update', onParticipantsUpdate);
   sock.ev.on('connection.update', onConnectionUpdate);
   sock.ev.on('messages.upsert', onMessages);
 
@@ -175,6 +193,7 @@ export function attachWhatsAppRouter(
     active = false;
     sock.ev.off('groups.upsert', onGroupsUpsert);
     sock.ev.off('groups.update', onGroupsUpdate);
+    sock.ev.off('group-participants.update', onParticipantsUpdate);
     sock.ev.off('connection.update', onConnectionUpdate);
     sock.ev.off('messages.upsert', onMessages);
   };
