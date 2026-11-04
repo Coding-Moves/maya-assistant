@@ -97,10 +97,10 @@ export async function handleOwnerText(
     return;
   }
 
-  if (/^debug(?:\s|$)/i.test(input)) {
-    const match = /^debug\s+run\s+(morning|evening|weekly)$/i.exec(input);
+  if (/^\/debug(?:\s|$)/i.test(input)) {
+    const match = /^\/debug\s+(morning|evening|weekly)$/i.exec(input);
     if (!match) {
-      await send('Use: debug run <morning|evening|weekly>.');
+      await send('Use /debug morning, /debug evening, or /debug weekly.');
       return;
     }
     const name = match[1]!.toLowerCase() as 'morning' | 'evening' | 'weekly';
@@ -114,6 +114,11 @@ export async function handleOwnerText(
             : 'completed with no message sent';
       await send(`Debug ${name} run ${detail}.`);
     }
+    return;
+  }
+
+  if (/^debug(?:\s|$)/i.test(input)) {
+    await send('Developer controls start with /. Try /debug morning.');
     return;
   }
 
