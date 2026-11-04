@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 import { after, test } from 'node:test';
 
 process.env.GEMINI_API_KEY = 'test';
+process.env.BOT_MODE = 'self';
 process.env.DATABASE_PATH = ':memory:';
 process.env.GROUP_ALLOWLIST = 'allowed@g.us';
 process.env.MEDIA_ENABLED = 'true';
@@ -76,6 +77,21 @@ test('reads an allowlisted PDF as a message for task extraction', async () => {
     },
   });
   assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'pdf-1'").get().text, 'CS101 Assignment 2 due 5 November');
+});
+
+test('queues voice notes and short video for group understanding', async () => {
+  const audio = { ...image('voice-group'), message: { audioMessage: {
+    mimetype: 'audio/ogg; codecs=opus', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  const video = { ...image('video-group'), message: { videoMessage: {
+    mimetype: 'video/mp4', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  assert.equal(enqueueGroupMedia(audio, 'Class'), true);
+  assert.equal(enqueueGroupMedia(video, 'Class'), true);
+  const types = [];
+  await processPendingMedia({ socket: {}, download: async () => Readable.from([Buffer.from('1234')]),
+    recognize: async (_bytes, mimeType) => { types.push(mimeType); return 'Student discussed the quiz'; } });
+  assert.deepEqual(types, ['audio/ogg', 'video/mp4']);
 });
 
 test('skips images without academic text and uses a caption when oversized', async () => {

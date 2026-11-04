@@ -3,11 +3,12 @@ import { config } from '../../config/env.js';
 import { rememberGroup as storeGroup, replaceJoinedGroups } from '../../db/repos/groups.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
 import { enqueueGroupMedia } from '../../features/media.js';
+import { handleOwnerMedia } from '../../features/owner-media.js';
 import { handleOwnerText } from '../../features/commands.js';
 import { commentOnOwnerStatus } from '../../features/status.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat, verifyOwnerLid } from './identity.js';
-import { parseMessageText } from './parse.js';
+import { parseMessageText, unwrapMessageContent } from './parse.js';
 import { markOwnerMessageRead, markOwnerStatusRead } from './send.js';
 import { ownerInput } from './trigger.js';
 
@@ -59,11 +60,20 @@ export function attachWhatsAppRouter(
         );
       });
   };
-  const handleOwnerMessage = (message: BaileysEventMap['messages.upsert']['messages'][number], text: string) => {
-    const input = ownerInput(text, message.key.fromMe);
-    if (!input) return;
+  const handleOwnerMessage = (message: BaileysEventMap['messages.upsert']['messages'][number], text: string | null) => {
+    const content = unwrapMessageContent(message.message);
+    const hasMedia = config.BOT_MODE === 'separate' && Boolean(
+      content?.imageMessage || content?.audioMessage || content?.videoMessage || content?.documentMessage || content?.stickerMessage,
+    );
+    const input = text ? ownerInput(text, message.key.fromMe) : null;
+    if (!input && !hasMedia) return;
     void markOwnerMessageRead(message.key);
-    const reply = handleOwnerText(input).catch((error: unknown) => {
+    const reply = (hasMedia
+      ? handleOwnerMedia(message, sock)
+      : input
+        ? handleOwnerText(input)
+        : Promise.resolve()
+    ).catch((error: unknown) => {
       logger.error(
         { errorType: error instanceof Error ? error.name : 'unknown' },
         'Could not handle owner message',
@@ -141,9 +151,9 @@ export function attachWhatsAppRouter(
           );
           logger.debug({ err: error }, 'Group message ingest failure details');
         }
-      } else if (text && isOwnerChat(chatId, message.key.remoteJidAlt)) {
+      } else if (isOwnerChat(chatId, message.key.remoteJidAlt)) {
         handleOwnerMessage(message, text);
-      } else if (text && config.BOT_MODE === 'separate' && message.key.fromMe === false) {
+      } else if (config.BOT_MODE === 'separate' && message.key.fromMe === false) {
         void verifyOwnerLid(sock, chatId).then((verified) => {
           if (active && verified) handleOwnerMessage(message, text);
         }).catch((error: unknown) => {
