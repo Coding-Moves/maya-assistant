@@ -6,14 +6,36 @@ import { clearMemoryIds, getMemory, listMemories, type Memory } from './memories
 const snapshotSchema = z.object({ id: z.number().int().positive(), revision: z.number().int().positive() });
 const payloadSchema = z.object({ items: z.array(snapshotSchema).min(1).max(100) });
 
+export function pendingMemoryChanges(actorJid: string, now = new Date()): {
+  token: string;
+  action: 'delete' | 'clear';
+  items: Memory[];
+}[] {
+  const rows = db.prepare<[string, string], { token: string; action: 'delete' | 'clear'; payload_json: string }>(
+    `SELECT token, action, payload_json FROM memory_confirmations
+     WHERE actor_jid = ? AND action IN ('delete', 'clear')
+       AND consumed_at IS NULL AND expires_at > ? ORDER BY rowid DESC LIMIT 10`,
+  ).all(actorJid, now.toISOString());
+  return rows.map((row) => ({
+    token: row.token,
+    action: row.action,
+    items: payloadSchema.parse(JSON.parse(row.payload_json)).items
+      .map(({ id }) => getMemory(id)).filter((item): item is Memory => item !== null),
+  }));
+}
+
 function createConfirmation(action: 'delete' | 'clear', actorJid: string, items: Memory[], now = new Date()): string {
   if (!actorJid) throw new Error('Verified owner identity is unavailable');
   if (items.length === 0 || items.length > 100) throw new Error('Choose between one and 100 memories');
   const token = randomBytes(6).toString('hex');
   const payload = payloadSchema.parse({ items: items.map(({ id, revision }) => ({ id, revision })) });
-  db.prepare(`INSERT INTO memory_confirmations
-    (token, action, actor_jid, payload_json, expires_at) VALUES (?, ?, ?, ?, ?)`)
-    .run(token, action, actorJid, JSON.stringify(payload), new Date(now.getTime() + 15 * 60_000).toISOString());
+  db.transaction(() => {
+    db.prepare(`UPDATE memory_confirmations SET consumed_at = ? WHERE actor_jid = ?
+      AND action IN ('delete', 'clear') AND consumed_at IS NULL`).run(now.toISOString(), actorJid);
+    db.prepare(`INSERT INTO memory_confirmations
+      (token, action, actor_jid, payload_json, expires_at) VALUES (?, ?, ?, ?, ?)`)
+      .run(token, action, actorJid, JSON.stringify(payload), new Date(now.getTime() + 15 * 60_000).toISOString());
+  })();
   return token;
 }
 

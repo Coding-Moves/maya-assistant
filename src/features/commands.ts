@@ -6,7 +6,9 @@ import { runJob } from '../scheduler/jobs.js';
 import { formatTaskDue } from '../utils/time.js';
 import { ask } from './ask.js';
 import { clearCompletionContext, handleNaturalDone } from './natural-done.js';
-import { handleMemoryCommand } from './memory.js';
+import { handleMemoryShortcut } from './memory.js';
+import { handleNaturalMemory } from './memory-intent.js';
+import { getOwnerChatJid } from '../channels/whatsapp/identity.js';
 
 export async function handleOwnerText(
   text: string,
@@ -19,7 +21,18 @@ export async function handleOwnerText(
   if (!input) return;
   const lower = input.toLowerCase();
 
+  const memoryReply = handleMemoryShortcut(input);
+  if (memoryReply !== null) {
+    await send(memoryReply);
+    return;
+  }
+
   if (config.BOT_MODE === 'separate') {
+    const naturalMemoryReply = await handleNaturalMemory(input, getOwnerChatJid(), sourceRef);
+    if (naturalMemoryReply !== null) {
+      await send(naturalMemoryReply);
+      return;
+    }
     const naturalReply = handleNaturalDone(input);
     if (naturalReply !== null) {
       await send(naturalReply);
@@ -28,17 +41,11 @@ export async function handleOwnerText(
     clearCompletionContext();
   }
 
-  const memoryReply = handleMemoryCommand(input, undefined, sourceRef);
-  if (memoryReply !== null) {
-    await send(memoryReply);
-    return;
-  }
-
   if (lower === 'help' || lower === '?') {
     await send(
       config.BOT_MODE === 'separate'
-        ? `I can keep an eye on every group I’m in, track quizzes and deadlines, and remind you what is coming up.${config.CALENDAR_SYNC ? ' I can also check your upcoming Google Calendar events.' : ''} I can keep saved memories and a class timetable too. Ask about a group, or send groups, tasks, done <number>, or memory help.`
-        : 'Commands: help or ?, task/tasks/list, done/complete <id>, memory help. Ask me a question for anything else.',
+        ? `I can keep an eye on every group I’m in, track quizzes and deadlines, and remind you what is coming up.${config.CALENDAR_SYNC ? ' I can also check your upcoming Google Calendar events.' : ''} Tell me naturally what to remember, or send me a voice note. Send a timetable image or PDF and ask me to save it. /memory and /timetable give quick summaries. You can still send groups, tasks, or done <number>.`
+        : 'Commands: help or ?, task/tasks/list, done/complete <id>, /memory, /timetable. Ask me a question for anything else.',
     );
     return;
   }

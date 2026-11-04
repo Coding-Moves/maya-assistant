@@ -16,6 +16,7 @@ const { configuredOwnerIdentity, setOwnerIdentity } = await import('../src/chann
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
 const { activeTimetables } = await import('../src/db/repos/timetables.ts');
+const { handleNaturalMemory } = await import('../src/features/memory-intent.ts');
 setOwnerIdentity(configuredOwnerIdentity());
 migrate();
 
@@ -30,6 +31,22 @@ test('voice note transcription reaches the command handler as plain owner text',
     return 'Done 1.';
   }, async (text) => { calls.push(text); }, async () => Readable.from([Buffer.from('opus')]));
   assert.deepEqual(calls, [['opus', 'audio/ogg'], 'Done 1']);
+});
+
+test('a spoken memory request saves through the same verified owner text path', async () => {
+  let reply = '';
+  await handleOwnerMedia({ key: { fromMe: false, id: 'voice-memory-1', remoteJid: '123@s.whatsapp.net' },
+    message: { audioMessage: { mimetype: 'audio/ogg', fileLength: 4 } } }, {},
+  async () => 'Remember permanently that I prefer studying in the morning',
+  async (text, _send, _answer, _run, sourceRef) => {
+    reply = await handleNaturalMemory(text, '123@s.whatsapp.net', sourceRef,
+      async () => ({ action: 'save', lifecycle: 'permanent', category: 'preference',
+        title: 'Study time', body: 'I prefer studying in the morning', date: null,
+        target: null, target_id: null, page: null, entry: null, field: null,
+        value: null, question: null }));
+  }, async () => Readable.from([Buffer.from('opus')]));
+  assert.match(reply, /remember Study time/);
+  assert.equal(db.prepare("SELECT source_ref FROM memory_items WHERE title = 'Study time'").get().source_ref, 'voice-memory-1');
 });
 
 test('video, PDFs, and image stickers are recognized as media', () => {

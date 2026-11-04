@@ -9,8 +9,8 @@ import { MediaTooLargeError, download, mediaDetails, readMediaBytes, type Downlo
 import { createTimetableDraft, timetableExtractionSchema, type TimetableExtraction } from '../db/repos/timetables.js';
 import { timetablePreview } from './memory.js';
 
-const timetableIntent = /\b(?:save|update|replace|remember)\b.{0,40}\b(?:timetable|class schedule|class routine)\b/i;
-const timetableDescription = /\b(?:timetable|class schedule|class routine|weekly class schedule)\b/i;
+const timetableIntent = /\b(?:timetable|time\s*table|class schedule|class routine)\b|ٹائم\s*ٹیبل|شیڈول/iu;
+const timetableDescription = /\b(?:timetable|time\s*table|class schedule|class routine|weekly class schedule)\b|ٹائم\s*ٹیبل|شیڈول/iu;
 const timetablePrompt = `Check whether this is a class timetable. Return JSON matching the schema.
 If it is not a timetable, set is_timetable=false and entries=[]. If it is, read each legible class row exactly.
 day_of_week is Monday=1 through Sunday=7. Times are local HH:mm (24-hour); do not invent missing values.
@@ -50,10 +50,10 @@ export async function handleOwnerMedia(
         if (extracted.is_timetable && extracted.entries.length > 0) {
           const actor = getOwnerChatJid();
           if (!actor) throw new Error('Owner identity unavailable for timetable preview');
-          const { token, draft, previous } = createTimetableDraft(
+          const { draft, previous } = createTimetableDraft(
             extracted, actor, config.TIMEZONE, message.key.id ?? null,
           );
-          return { draftReply: timetablePreview(draft, token, previous), description: '' };
+          return { draftReply: timetablePreview(draft, previous), description: '' };
         }
         if (!description) description = (await spokenOrDescribe(bytes, details.mimeType)).trim();
       }

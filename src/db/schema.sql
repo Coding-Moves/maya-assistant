@@ -188,6 +188,12 @@ CREATE TABLE IF NOT EXISTS memory_confirmations (
 );
 CREATE INDEX IF NOT EXISTS idx_memory_confirmations_expiry ON memory_confirmations(expires_at);
 
+CREATE TABLE IF NOT EXISTS memory_save_drafts (
+  actor_jid TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS source_tasks (
   source TEXT NOT NULL,
   external_id TEXT NOT NULL,

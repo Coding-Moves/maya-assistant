@@ -13,7 +13,7 @@ const { migrate } = await import('../src/db/migrate.ts');
 const { createTask, openTasks } = await import('../src/db/repos/tasks.ts');
 const { clearOwnerIdentity, resolveOwnerIdentity, setOwnerIdentity } =
   await import('../src/channels/whatsapp/identity.ts');
-const { attachWhatsAppRouter } =
+const { attachWhatsAppRouter, waitForOwnerReplies } =
   await import('../src/channels/whatsapp/router.ts');
 
 migrate();
@@ -84,8 +84,9 @@ test('separate mode handles only inbound owner chat and ignores its own outgoing
       ],
     });
 
+    await waitForOwnerReplies();
     assert.deepEqual(openTasks().map(({ id }) => id), ids.slice(1));
-    assert.deepEqual(viewedStatuses, ['status', 'lid-status']);
+    assert.deepEqual(viewedStatuses, ['status', 'lid-status', 'mapped-lid-status']);
     await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(viewedStatuses, ['status', 'lid-status', 'mapped-lid-status']);
     assert.deepEqual(commentedStatuses, ['status', 'lid-status', 'mapped-lid-status']);

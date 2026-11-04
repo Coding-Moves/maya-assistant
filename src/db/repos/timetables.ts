@@ -114,6 +114,17 @@ export function getTimetableDraft(token: string, actorJid: string, now = new Dat
   return version?.state === 'draft' && memory ? { memory, version, entries: getEntries(version.id) } : null;
 }
 
+export function pendingTimetableDrafts(actorJid: string, now = new Date()): { token: string; draft: Timetable }[] {
+  const rows = db.prepare<[string, string], { token: string }>(
+    `SELECT token FROM memory_confirmations WHERE action = 'timetable' AND actor_jid = ?
+     AND consumed_at IS NULL AND expires_at > ? ORDER BY rowid DESC LIMIT 10`,
+  ).all(actorJid, now.toISOString());
+  return rows.flatMap(({ token }) => {
+    const draft = getTimetableDraft(token, actorJid, now);
+    return draft ? [{ token, draft }] : [];
+  });
+}
+
 export function createTimetableDraft(
   raw: TimetableExtraction,
   actorJid: string,
@@ -139,6 +150,16 @@ export function createTimetableDraft(
       body: 'Structured class timetable', lifecycle: 'permanent',
       sourceKind: 'owner_media', sourceRef, status: 'draft',
     }, now);
+    const oldDrafts = db.prepare<[string], { token: string; payload_json: string }>(
+      `SELECT token, payload_json FROM memory_confirmations WHERE action = 'timetable'
+       AND actor_jid = ? AND consumed_at IS NULL`,
+    ).all(actorJid);
+    for (const old of oldDrafts) {
+      const { draftId } = z.object({ draftId: z.number().int().positive() }).parse(JSON.parse(old.payload_json));
+      db.prepare("DELETE FROM timetable_versions WHERE id = ? AND state = 'draft'").run(draftId);
+      db.prepare('UPDATE memory_confirmations SET consumed_at = ? WHERE token = ?')
+        .run(now.toISOString(), old.token);
+    }
     if (previous || pending[0]) db.prepare('UPDATE memory_items SET updated_at = ?, revision = revision + 1 WHERE id = ?')
       .run(now.toISOString(), memory.id);
     const nextVersion = Number(db.prepare<[number], { n: number }>(
