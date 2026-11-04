@@ -2,6 +2,8 @@ import cron from 'node-cron';
 import { config } from '../config/env.js';
 import { runDigest } from '../features/digests.js';
 import { syncCalendarOnce } from '../features/calendar.js';
+import { syncUpcomingCalendarEvents } from '../features/calendar-read.js';
+import { remindImportantCalendarEvents } from '../features/calendar-reminders.js';
 import { extractOnce } from '../features/extract.js';
 import { processPendingMedia } from '../features/media.js';
 import { runWeeklyPlan } from '../features/weeklyPlan.js';
@@ -18,6 +20,7 @@ interface JobDependencies {
   extract: typeof extractOnce;
   media: typeof processPendingMedia;
   calendar: typeof syncCalendarOnce;
+  calendarRead: typeof syncUpcomingCalendarEvents;
   vu: typeof syncVuClassicTodo;
   schedule: typeof cron.schedule;
   every: typeof setInterval;
@@ -30,7 +33,8 @@ export async function runJob(name: JobName): Promise<JobResult> {
   try {
     const sent =
       name === 'weekly' ? await runWeeklyPlan() : await runDigest(name);
-    return sent ? 'sent' : 'not-sent';
+    const calendarSent = name === 'morning' ? await remindImportantCalendarEvents() : false;
+    return sent || calendarSent ? 'sent' : 'not-sent';
   } catch (error) {
     logger.error(
       { job: name, errorType: error instanceof Error ? error.name : 'unknown' },
@@ -49,6 +53,7 @@ export function startJobs(
   const extract = dependencies.extract ?? extractOnce;
   const media = dependencies.media ?? processPendingMedia;
   const calendar = dependencies.calendar ?? syncCalendarOnce;
+  const calendarRead = dependencies.calendarRead ?? syncUpcomingCalendarEvents;
   const vu = dependencies.vu ?? syncVuClassicTodo;
   const schedule = dependencies.schedule ?? cron.schedule;
   const every = dependencies.every ?? setInterval;
@@ -91,6 +96,13 @@ export function startJobs(
       } catch (error) {
         logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Calendar run failed');
         logger.debug({ err: error }, 'Calendar run failure details');
+      }
+      try {
+        await calendarRead();
+        await remindImportantCalendarEvents();
+      } catch (error) {
+        logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Calendar read run failed');
+        logger.debug({ err: error }, 'Calendar read failure details');
       }
       extractionRunning = false;
     }

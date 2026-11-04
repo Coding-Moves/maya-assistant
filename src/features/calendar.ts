@@ -47,7 +47,7 @@ async function accessToken(request: Request): Promise<string> {
   return cachedToken.value;
 }
 
-async function calendarRequest(request: Request, method: string, path: string, body?: object): Promise<Response> {
+export async function calendarRequest(request: Request, method: string, path: string, body?: object): Promise<Response> {
   const token = await accessToken(request);
   const response = await request(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(config.GOOGLE_CALENDAR_ID)}/events${path}`, {
     method,

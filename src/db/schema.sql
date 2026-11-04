@@ -66,6 +66,21 @@ CREATE TABLE IF NOT EXISTS calendar_meta (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  location TEXT,
+  start_at TEXT NOT NULL,
+  local_day TEXT NOT NULL,
+  all_day INTEGER NOT NULL DEFAULT 0,
+  important INTEGER NOT NULL DEFAULT 0,
+  reminded_at TEXT,
+  seen INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_events_day ON calendar_events(local_day, important);
+
 INSERT OR IGNORE INTO calendar_meta (key, value)
 VALUES ('instance_id', lower(hex(randomblob(16))));
 

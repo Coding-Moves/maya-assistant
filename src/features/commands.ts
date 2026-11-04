@@ -29,7 +29,7 @@ export async function handleOwnerText(
   if (lower === 'help' || lower === '?') {
     await send(
       config.BOT_MODE === 'separate'
-        ? 'I can keep an eye on every group I’m in, track quizzes and deadlines, and remind you what is coming up. Ask about a group, or send groups, tasks, or done followed by a task number.'
+        ? `I can keep an eye on every group I’m in, track quizzes and deadlines, and remind you what is coming up.${config.CALENDAR_SYNC ? ' I can also check your upcoming Google Calendar events.' : ''} Ask about a group, or send groups, tasks, or done followed by a task number.`
         : 'Commands: help or ?, task/tasks/list, done/complete <id>. Ask me a question for anything else.',
     );
     return;
