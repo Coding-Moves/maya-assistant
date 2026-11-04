@@ -41,7 +41,7 @@ test('scheduler applies timezone to every cron job and prevents overlapping extr
     },
   });
 
-  assert.equal(registrations.length, 3);
+  assert.equal(registrations.length, 4);
   for (const { options } of registrations) {
     assert.equal(options.timezone, 'Asia/Karachi');
     assert.equal(options.noOverlap, true);
@@ -60,7 +60,7 @@ test('scheduler applies timezone to every cron job and prevents overlapping extr
   finishExtraction();
   await stop();
   assert.equal(clearCount, 1);
-  assert.equal(stopCount, 3);
+  assert.equal(stopCount, 4);
 });
 
 test('shutdown waits for active extraction and rejects new ticks', async () => {

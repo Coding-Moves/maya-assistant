@@ -66,13 +66,13 @@ test('hidden debug command runs a job without calling AI', async () => {
     return 'not-sent';
   };
 
-  await handleOwnerText('debug run morning', send, ask, run);
-  await handleOwnerText('debug run evening', send, ask, run);
-  await handleOwnerText('debug run weekly', send, ask, run);
-  await handleOwnerText('debug run invalid', send, ask, run);
+  await handleOwnerText('/debug morning', send, ask, run);
+  await handleOwnerText('/debug evening', send, ask, run);
+  await handleOwnerText('/debug weekly', send, ask, run);
+  await handleOwnerText('/debug invalid', send, ask, run);
 
   assert.deepEqual(jobs, ['morning', 'evening', 'weekly']);
   assert.equal(replies.length, 4);
   assert.match(replies[0], /no message sent/);
-  assert.match(replies[3], /Use: debug run/);
+  assert.match(replies[3], /Use \/debug/);
 });

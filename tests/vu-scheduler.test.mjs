@@ -27,7 +27,7 @@ test('daily VU check uses the timezone, does not overlap, and stops cleanly', as
     clear: () => undefined,
   });
   const vu = registrations.find(({ options }) => options.name === 'maya-vu-classic-todo');
-  assert.equal(registrations.length, 4);
+  assert.equal(registrations.length, 5);
   assert.equal(vu.expression, '0 6 * * *');
   assert.equal(vu.options.timezone, 'Asia/Karachi');
   assert.equal(vu.options.noOverlap, true);

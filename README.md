@@ -19,6 +19,7 @@ Maya fixes that. On her own number, she quietly reads every group she has joined
 - 🧠 **Understands** group messages with AI. In separate mode, only academic quizzes, assignments, and exams become reminder tasks. You can ask about other group activity privately. Optional media reading covers photos, voice notes, short video, PDFs, and text files within the size limit.
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
 - 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
+- 🗂️ **Keeps memories you deliberately save** as permanent, semester/project, or temporary records. A timetable image or PDF becomes a draft you review before it replaces the active timetable. See [the memory guide](docs/MEMORY.md).
 - 👀 **Views only your WhatsApp Status** in separate mode and sends you a short private comment when she can read its text, caption, photo, or supported video. She does not store Status content or turn it into tasks, and ignores other people's Status updates. Photo and video comments send the media to Gemini and use the configured `MEDIA_MAX_BYTES` limit, independently of `MEDIA_ENABLED` (which controls group and direct owner media). Unsupported or oversized Status media without a caption is viewed without a comment.
 - 📚 **Tracks VU Classic To Do deadlines** for quizzes and assignments through an optional daily portal check or a manual CSV import.
 - 📅 **Connects to Google Calendar** when authorized: Maya creates events for her dated tasks, reads upcoming meetings, answers questions about them, and reminds you once on the day of events whose title contains `important`.
@@ -83,7 +84,7 @@ VU students can enable an optional daily check of only the assignment and quiz t
 
 For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage.
 
-To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages and tasks, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backup automation is deferred.
+To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages, tasks, and saved memories, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backup automation is deferred.
 
 ## Talking to Maya
 
@@ -102,6 +103,8 @@ To save a consistent SQLite snapshot while Maya is running, use `npm run backup-
 **On a second number:** save it as "Maya" in your contacts and message her directly. You can write `done 4`, `hi`, or ask a question without using her name first. She replies in plain text, shows typing while answering with AI, and marks your message read when she starts replying. Messages from other people are ignored.
 
 You can also say “I've done it” or “ho gaya”. If one open task or a task you just discussed clearly matches, Maya ticks it off. If several could match, she asks you which one by name.
+
+To save something, tell Maya naturally in your private chat or a voice note: “Remember permanently that I prefer short reminders.” If you do not say how long to keep it, she asks. You can ask what she saved, change or archive a named memory, or ask to delete it; deletion needs a clear follow-up confirmation. Send a timetable image or PDF and say it is your timetable. Maya previews the classes and waits for “Yes, save the timetable” before activating it. `/memory` and `/timetable` are optional one-word shortcuts. See [the memory guide](docs/MEMORY.md). Timetable reading requires `MEDIA_ENABLED=true` in separate mode and uses the same media size limit.
 
 Don't like the name? Set `BOT_NAME` in `.env` to anything you want.
 

@@ -87,6 +87,25 @@ export async function generateJson<T extends z.ZodType>(
   return schema.parse(JSON.parse(response.text));
 }
 
+export async function generateMediaJson<T extends z.ZodType>(
+  bytes: Buffer,
+  mimeType: string,
+  prompt: string,
+  schema: T,
+): Promise<z.output<T>> {
+  const responseJsonSchema = supportedJsonSchema(z.toJSONSchema(schema));
+  const response = await withRetry(() => ai.models.generateContent({
+    model: config.GEMINI_MODEL,
+    contents: [
+      { inlineData: { mimeType, data: bytes.toString('base64') } },
+      { text: prompt },
+    ],
+    config: { responseMimeType: 'application/json', responseJsonSchema },
+  }));
+  if (!response.text) throw new Error('Gemini returned no media JSON');
+  return schema.parse(JSON.parse(response.text));
+}
+
 export async function generateText(prompt: string): Promise<string> {
   const response = await withRetry(() =>
     ai.models.generateContent({ model: config.GEMINI_MODEL, contents: prompt }),

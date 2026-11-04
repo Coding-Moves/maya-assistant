@@ -10,6 +10,8 @@ import { runWeeklyPlan } from '../features/weeklyPlan.js';
 import { syncVuClassicTodo } from '../features/vu.js';
 import { sendToOwner } from '../channels/whatsapp/send.js';
 import { logger } from '../utils/logger.js';
+import { cleanupMemories } from '../db/repos/memories.js';
+import { cleanupTimetableDrafts } from '../db/repos/timetables.js';
 
 export type JobName = 'morning' | 'evening' | 'weekly';
 export type JobResult = 'sent' | 'not-sent' | 'busy' | 'failed';
@@ -25,6 +27,7 @@ interface JobDependencies {
   schedule: typeof cron.schedule;
   every: typeof setInterval;
   clear: typeof clearInterval;
+  memoryCleanup: () => void;
 }
 
 export async function runJob(name: JobName): Promise<JobResult> {
@@ -58,6 +61,10 @@ export function startJobs(
   const schedule = dependencies.schedule ?? cron.schedule;
   const every = dependencies.every ?? setInterval;
   const clear = dependencies.clear ?? clearInterval;
+  const memoryCleanup = dependencies.memoryCleanup ?? (() => {
+    cleanupMemories();
+    cleanupTimetableDrafts();
+  });
   let extractionRunning = false;
   let vuRunning = false;
   let stopping = false;
@@ -139,6 +146,15 @@ export function startJobs(
       timezone: config.TIMEZONE,
       noOverlap: true,
       name: 'maya-weekly',
+    }),
+    schedule('0 3 * * *', () => {
+      if (!stopping) track(Promise.resolve().then(memoryCleanup).catch((error: unknown) => {
+        logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Memory cleanup failed');
+      }));
+    }, {
+      timezone: config.TIMEZONE,
+      noOverlap: true,
+      name: 'maya-memory-cleanup',
     }),
   ];
   if (config.VU_LMS_SYNC) {
