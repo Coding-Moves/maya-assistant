@@ -79,29 +79,35 @@ test('reads an allowlisted PDF as a message for task extraction', async () => {
   assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'pdf-1'").get().text, 'CS101 Assignment 2 due 5 November');
 });
 
-test('queues voice notes and short video for group understanding', async () => {
+test('self mode does not queue voice notes or video', () => {
   const audio = { ...image('voice-group'), message: { audioMessage: {
     mimetype: 'audio/ogg; codecs=opus', fileLength: 4, mediaKey: Buffer.from('key'),
   } } };
   const video = { ...image('video-group'), message: { videoMessage: {
     mimetype: 'video/mp4', fileLength: 4, mediaKey: Buffer.from('key'),
   } } };
-  assert.equal(enqueueGroupMedia(audio, 'Class'), true);
-  assert.equal(enqueueGroupMedia(video, 'Class'), true);
-  const types = [];
-  await processPendingMedia({ socket: {}, download: async () => Readable.from([Buffer.from('1234')]),
-    recognize: async (_bytes, mimeType) => { types.push(mimeType); return 'Student discussed the quiz'; } });
-  assert.deepEqual(types, ['audio/ogg', 'video/mp4']);
+  assert.equal(enqueueGroupMedia(audio, 'Class'), false);
+  assert.equal(enqueueGroupMedia(video, 'Class'), false);
+  assert.equal(pendingMediaJobs(10).length, 0);
 });
 
-test('reads a text attachment directly without sending it as unsupported Gemini media', async () => {
+test('self mode leaves text attachments outside its media queue', () => {
   const textFile = { ...image('text-group'), message: { documentMessage: {
     mimetype: 'text/plain', fileLength: 4, mediaKey: Buffer.from('key'),
   } } };
-  assert.equal(enqueueGroupMedia(textFile, 'Class'), true);
-  await processPendingMedia({ socket: {}, download: async () => Readable.from([Buffer.from('Quiz')]),
-    recognize: async () => { throw new Error('Text should not use Gemini media input'); } });
-  assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'text-group'").get().text, 'Quiz');
+  assert.equal(enqueueGroupMedia(textFile, 'Class'), false);
+  assert.equal(pendingMediaJobs(10).length, 0);
+});
+
+test('self mode still ignores sticker and image-document formats', () => {
+  const sticker = { ...image('sticker-group'), message: { stickerMessage: {
+    mimetype: 'image/webp', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  const imageDocument = { ...image('image-document-group'), message: { documentMessage: {
+    mimetype: 'image/jpeg', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  assert.equal(enqueueGroupMedia(sticker, 'Class'), false);
+  assert.equal(enqueueGroupMedia(imageDocument, 'Class'), false);
 });
 
 test('skips images without academic text and uses a caption when oversized', async () => {

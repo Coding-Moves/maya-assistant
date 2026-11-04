@@ -15,6 +15,7 @@ const supportedTypes = new Set([
   'video/mp4', 'video/webm', 'video/3gpp', 'video/mpeg', 'video/mov',
   'application/pdf', 'text/plain', 'text/csv',
 ]);
+const selfModeGroupTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 
 export class MediaTooLargeError extends Error {}
 
@@ -49,6 +50,12 @@ export function enqueueGroupMedia(message: WAMessage, chatName: string | null): 
   if (!config.MEDIA_ENABLED) return false;
   const details = mediaDetails(message);
   if (!details) return false;
+  if (config.BOT_MODE === 'self') {
+    const content = unwrapMessageContent(message.message);
+    const originalMedia = Boolean(content?.imageMessage && selfModeGroupTypes.has(details.mimeType)) ||
+      Boolean(content?.documentMessage && details.mimeType === 'application/pdf');
+    if (!originalMedia) return false;
+  }
   if (details.fileLength !== null && details.fileLength > config.MEDIA_MAX_BYTES) {
     if (details.caption) ingestGroupMessage(message, details.caption, chatName);
     logger.warn({ messageId: message.key.id }, 'Group media skipped: size limit exceeded');
