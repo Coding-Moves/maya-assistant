@@ -27,6 +27,7 @@ export async function runDigest(
   const tasks = openTasks().filter(
     (task) =>
       task.dueAt !== null &&
+      (config.BOT_MODE !== 'separate' || ['quiz', 'assignment', 'exam'].includes(task.type)) &&
       localDay(new Date(task.dueAt)) === target &&
       (period === 'morning' ? !task.remindedMorning : !task.remindedEvening),
   );

@@ -1,12 +1,14 @@
-import { isJidBroadcast, isJidStatusBroadcast, type BaileysEventMap, type GroupMetadata, type WAMessage, type WAMessageKey, type WASocket } from 'baileys';
+import { isJidBroadcast, isJidGroup, isJidStatusBroadcast, jidNormalizedUser, type BaileysEventMap, type GroupMetadata, type WAMessage, type WAMessageKey, type WASocket } from 'baileys';
 import { config } from '../../config/env.js';
+import { deactivateGroup, rememberGroup as storeGroup, replaceJoinedGroups } from '../../db/repos/groups.js';
 import { ingestGroupMessage } from '../../features/ingest.js';
 import { enqueueGroupMedia } from '../../features/media.js';
+import { handleOwnerMedia } from '../../features/owner-media.js';
 import { handleOwnerText } from '../../features/commands.js';
 import { commentOnOwnerStatus } from '../../features/status.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat, verifyOwnerLid } from './identity.js';
-import { parseMessageText } from './parse.js';
+import { parseMessageText, unwrapMessageContent } from './parse.js';
 import { markOwnerMessageRead, markOwnerStatusRead } from './send.js';
 import { ownerInput } from './trigger.js';
 
@@ -30,8 +32,9 @@ export function attachWhatsAppRouter(
   const handledStatusIds = new Set<string>();
   const groupNames = new Map<string, string>();
   const rememberGroup = (group: Partial<GroupMetadata>) => {
-    if (group.id && allowedGroups.has(group.id) && group.subject) {
-      groupNames.set(group.id, group.subject);
+    if (group.id && (config.BOT_MODE === 'separate' || allowedGroups.has(group.id))) {
+      if (group.subject) groupNames.set(group.id, group.subject);
+      if (config.BOT_MODE === 'separate') storeGroup(group.id, group.subject ?? null);
     }
   };
 
@@ -39,6 +42,23 @@ export function attachWhatsAppRouter(
     groups.forEach(rememberGroup);
   const onGroupsUpdate = (groups: Partial<GroupMetadata>[]) =>
     groups.forEach(rememberGroup);
+  const onParticipantsUpdate = ({ id, action, participants }: BaileysEventMap['group-participants.update']) => {
+    if (config.BOT_MODE !== 'separate' || (action !== 'add' && action !== 'remove')) return;
+    const ownJids = new Set([sock.user?.id, sock.user?.lid, sock.user?.phoneNumber]
+      .filter((jid): jid is string => Boolean(jid)).map(jidNormalizedUser));
+    if (!participants.some((participant) => [participant.id, participant.lid, participant.phoneNumber]
+      .some((jid) => jid && ownJids.has(jidNormalizedUser(jid))))) return;
+    if (action === 'remove') {
+      groupNames.delete(id);
+      deactivateGroup(id);
+    } else {
+      void sock.groupMetadata(id).then((group) => {
+        if (active) rememberGroup(group);
+      }).catch((error: unknown) => {
+        logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not refresh newly joined group');
+      });
+    }
+  };
   const onConnectionUpdate = ({
     connection,
   }: BaileysEventMap['connection.update']) => {
@@ -46,7 +66,9 @@ export function attachWhatsAppRouter(
     void sock
       .groupFetchAllParticipating()
       .then((groups) => {
+        if (!active) return;
         Object.values(groups).forEach(rememberGroup);
+        if (config.BOT_MODE === 'separate') replaceJoinedGroups(Object.values(groups).map((group) => ({ id: group.id, name: group.subject ?? null })));
       })
       .catch((error: unknown) => {
         logger.warn(
@@ -55,11 +77,20 @@ export function attachWhatsAppRouter(
         );
       });
   };
-  const handleOwnerMessage = (message: BaileysEventMap['messages.upsert']['messages'][number], text: string) => {
-    const input = ownerInput(text, message.key.fromMe);
-    if (!input) return;
+  const handleOwnerMessage = (message: BaileysEventMap['messages.upsert']['messages'][number], text: string | null) => {
+    const content = unwrapMessageContent(message.message);
+    const hasMedia = config.BOT_MODE === 'separate' && Boolean(
+      content?.imageMessage || content?.audioMessage || content?.videoMessage || content?.documentMessage || content?.stickerMessage,
+    );
+    const input = text ? ownerInput(text, message.key.fromMe) : null;
+    if (!input && !hasMedia) return;
     void markOwnerMessageRead(message.key);
-    const reply = handleOwnerText(input).catch((error: unknown) => {
+    const reply = (hasMedia
+      ? handleOwnerMedia(message, sock)
+      : input
+        ? handleOwnerText(input)
+        : Promise.resolve()
+    ).catch((error: unknown) => {
       logger.error(
         { errorType: error instanceof Error ? error.name : 'unknown' },
         'Could not handle owner message',
@@ -116,7 +147,7 @@ export function attachWhatsAppRouter(
         continue;
       if (config.BOT_MODE === 'self' && text?.startsWith(botPrefix)) continue;
 
-      if (allowedGroups.has(chatId)) {
+      if (isJidGroup(chatId) && (config.BOT_MODE === 'separate' || allowedGroups.has(chatId))) {
         try {
           if (enqueueGroupMedia(message, groupNames.get(chatId) ?? null)) continue;
           if (!text) continue;
@@ -137,9 +168,9 @@ export function attachWhatsAppRouter(
           );
           logger.debug({ err: error }, 'Group message ingest failure details');
         }
-      } else if (text && isOwnerChat(chatId, message.key.remoteJidAlt)) {
+      } else if (isOwnerChat(chatId, message.key.remoteJidAlt)) {
         handleOwnerMessage(message, text);
-      } else if (text && config.BOT_MODE === 'separate' && message.key.fromMe === false) {
+      } else if (config.BOT_MODE === 'separate' && message.key.fromMe === false) {
         void verifyOwnerLid(sock, chatId).then((verified) => {
           if (active && verified) handleOwnerMessage(message, text);
         }).catch((error: unknown) => {
@@ -154,6 +185,7 @@ export function attachWhatsAppRouter(
 
   sock.ev.on('groups.upsert', onGroupsUpsert);
   sock.ev.on('groups.update', onGroupsUpdate);
+  sock.ev.on('group-participants.update', onParticipantsUpdate);
   sock.ev.on('connection.update', onConnectionUpdate);
   sock.ev.on('messages.upsert', onMessages);
 
@@ -161,6 +193,7 @@ export function attachWhatsAppRouter(
     active = false;
     sock.ev.off('groups.upsert', onGroupsUpsert);
     sock.ev.off('groups.update', onGroupsUpdate);
+    sock.ev.off('group-participants.update', onParticipantsUpdate);
     sock.ev.off('connection.update', onConnectionUpdate);
     sock.ev.off('messages.upsert', onMessages);
   };

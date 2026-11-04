@@ -15,7 +15,7 @@ Maya has four parts:
 flowchart TD
     G[WhatsApp groups] -->|read only| W[Baileys socket]
     W --> R{Router}
-    R -->|allowlisted group| I[Ingest]
+    R -->|joined group in separate mode; allowlisted in self mode| I[Ingest]
     R -->|verified owner chat| Q[Ask / Commands]
     R -->|verified owner Status| ST[View and comment]
     R -->|anything else| X[Ignore]
@@ -40,8 +40,9 @@ flowchart TD
 ### Key design decisions
 
 - **Batch extraction.** The AI runs on batches of unprocessed messages every `EXTRACT_INTERVAL_MIN` minutes, not on every message. This means fewer API calls, lower cost, and better context (it can see "quiz moved to Monday" right after "quiz on Friday").
-- **Media queue.** Supported images and PDFs from allowlisted groups are stored as bounded, retryable media jobs before text extraction. Pending placeholders never enter task extraction or Q&A. Completed text enters the same `messages` table. The queue stores the WhatsApp media key and metadata, so it needs the same private storage protection as auth data.
-- **Calendar queue.** Task inserts and meaningful changes enqueue a durable calendar job. Event IDs combine a random, persistent database namespace with the task ID using Google-compatible characters, so retries after a crash update the same event without colliding with another installation. A revision counter keeps concurrent changes queued. Calendar sync is off until the owner completes OAuth and enables it.
+- **Group access.** Separate mode reads every joined group. `groups` stores the latest joined names for the private `groups` command and named-group questions; a successful membership fetch replaces the active list. Self mode still reads only `GROUP_ALLOWLIST`. Only academic quiz, assignment, and exam deadlines should become separate-mode reminder tasks. Family and social group messages remain available for private questions. All group text sent for extraction reaches Gemini, so adding Maya to a group has privacy and API-cost effects.
+- **Media queue.** In separate mode, supported images, audio, short videos, PDFs, and text files from readable groups are stored as bounded, retryable media jobs before text extraction. Self mode keeps image and PDF reading only. Pending placeholders never enter task extraction or Q&A. Completed descriptions or transcripts enter the same `messages` table. Owner-chat media is read on demand and is not stored as a group message. Files over `MEDIA_MAX_BYTES` are refused; captions from oversized group files still enter text extraction. Other document types and long/large videos are unsupported. The queue stores the WhatsApp media key and metadata, so it needs the same private storage protection as auth data.
+- **Calendar queue and read cache.** Task inserts and meaningful changes enqueue a durable calendar job. Event IDs combine a random, persistent database namespace with the task ID using Google-compatible characters, so retries after a crash update the same event without colliding with another installation. A revision counter keeps concurrent changes queued. In separate mode, Maya also refreshes a 30-day upcoming event cache hourly when authorized. Only events with `important` in the title get one reminder on their local day; the morning job and hourly checks both look for unreminded events. Task-owned Calendar events are excluded from that reminder path. Calendar edits do not rewrite Maya tasks. Calendar sync is off until the owner completes OAuth and enables it.
 - **Update, don't duplicate.** The extractor gets the list of open tasks with each batch, so it can update an existing task (a new date, or cancelled) instead of creating a second one.
 - **One way out.** Only `sendToOwner()` can send messages. This is the main safety rule.
 - **Loop guard.** Self mode keeps the `🤖 <BOT_NAME>:` prefix and ignores it on input. Separate mode sends plain text and ignores Maya's outgoing messages through `key.fromMe`.
@@ -85,14 +86,18 @@ maya-assistant/
 │   │   └── repos/
 │   │       ├── messages.ts       # insert (dedupe), getUnprocessed, quarantine, markProcessed, recent
 │   │       ├── media.ts          # Pending media jobs, completion, and quarantine
+│   │       └── groups.ts         # Joined-group names and active membership
 │   │       └── tasks.ts          # upsert, dueBetween, open, markDone, markReminded
 │   ├── ai/
 │   │   ├── gemini.ts             # Client wrapper, retry with backoff on 429/5xx
 │   │   ├── prompts.ts            # Extraction, ask, weekly-plan prompts
 │   │   └── schemas.ts            # zod schemas for AI JSON
 │   ├── features/
-│   │   ├── ingest.ts             # Save allowlisted group messages
-│   │   ├── media.ts              # Retryable image/PDF reading before text extraction
+│   │   ├── ingest.ts             # Save readable group messages
+│   │   ├── media.ts              # Retryable group media reading before text extraction
+│   │   ├── owner-media.ts        # Direct owner media understanding
+│   │   ├── calendar-read.ts      # Upcoming event read cache
+│   │   ├── calendar-reminders.ts # One-time important event reminders
 │   │   ├── status.ts             # Bounded owner Status reading and private comments
 │   │   ├── extract.ts            # Batch → AI → upsert tasks → mark processed
 │   │   ├── commands.ts           # No-AI commands: help, tasks, done <id>
@@ -137,6 +142,12 @@ CREATE TABLE IF NOT EXISTS messages (
   extract_attempts INTEGER NOT NULL DEFAULT 0,
   failure_batch_id INTEGER REFERENCES extraction_failures(id),
   UNIQUE (source, chat_id, external_id)
+);
+
+CREATE TABLE IF NOT EXISTS groups (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  active INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS extraction_failures (
@@ -184,6 +195,19 @@ CREATE TABLE IF NOT EXISTS calendar_jobs (
 CREATE TABLE IF NOT EXISTS calendar_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  location TEXT,
+  start_at TEXT NOT NULL,
+  local_day TEXT NOT NULL,
+  all_day INTEGER NOT NULL DEFAULT 0,
+  important INTEGER NOT NULL DEFAULT 0,
+  reminded_at TEXT,
+  seen INTEGER NOT NULL DEFAULT 1
 );
 
 INSERT OR IGNORE INTO calendar_meta (key, value)

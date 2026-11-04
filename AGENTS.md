@@ -10,6 +10,7 @@ Instructions for AI coding agents (Codex, Claude Code, Cursor, etc.) working on 
 - **Only `sendToOwner()` in `src/channels/whatsapp/send.ts` may call `sock.sendMessage`.** No other file sends messages.
 - WhatsApp read receipts and typing presence must also be sent only from `src/channels/whatsapp/send.ts`, and only for the verified owner in separate mode.
 - **Never send to groups or to anyone except the owner.** Groups are read-only.
+- In separate mode, read every group the Maya account has joined; `GROUP_ALLOWLIST` applies only to self mode. Keep family/social messages available for private questions, but send scheduled task reminders only for academic quiz, assignment, and exam deadlines.
 - In self mode, every bot message starts with `🤖 ${BOT_NAME}: ` and the router ignores that prefix. In separate mode, send plain text and use `key.fromMe` as the outgoing loop guard.
 - Never commit `.env`, `auth_info/`, `data/`, or any `*.db` file.
 - Never log message text at `info` level or above. Use `debug`.

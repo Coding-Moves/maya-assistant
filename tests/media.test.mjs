@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 import { after, test } from 'node:test';
 
 process.env.GEMINI_API_KEY = 'test';
+process.env.BOT_MODE = 'self';
 process.env.DATABASE_PATH = ':memory:';
 process.env.GROUP_ALLOWLIST = 'allowed@g.us';
 process.env.MEDIA_ENABLED = 'true';
@@ -76,6 +77,37 @@ test('reads an allowlisted PDF as a message for task extraction', async () => {
     },
   });
   assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'pdf-1'").get().text, 'CS101 Assignment 2 due 5 November');
+});
+
+test('self mode does not queue voice notes or video', () => {
+  const audio = { ...image('voice-group'), message: { audioMessage: {
+    mimetype: 'audio/ogg; codecs=opus', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  const video = { ...image('video-group'), message: { videoMessage: {
+    mimetype: 'video/mp4', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  assert.equal(enqueueGroupMedia(audio, 'Class'), false);
+  assert.equal(enqueueGroupMedia(video, 'Class'), false);
+  assert.equal(pendingMediaJobs(10).length, 0);
+});
+
+test('self mode leaves text attachments outside its media queue', () => {
+  const textFile = { ...image('text-group'), message: { documentMessage: {
+    mimetype: 'text/plain', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  assert.equal(enqueueGroupMedia(textFile, 'Class'), false);
+  assert.equal(pendingMediaJobs(10).length, 0);
+});
+
+test('self mode still ignores sticker and image-document formats', () => {
+  const sticker = { ...image('sticker-group'), message: { stickerMessage: {
+    mimetype: 'image/webp', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  const imageDocument = { ...image('image-document-group'), message: { documentMessage: {
+    mimetype: 'image/jpeg', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  assert.equal(enqueueGroupMedia(sticker, 'Class'), false);
+  assert.equal(enqueueGroupMedia(imageDocument, 'Class'), false);
 });
 
 test('skips images without academic text and uses a caption when oversized', async () => {

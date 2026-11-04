@@ -14,7 +14,9 @@ export async function runWeeklyPlan(
   send: SendPlan = sendToOwner,
 ): Promise<boolean> {
   const end = new Date(now.getTime() + sevenDaysMs);
-  const tasks = tasksDueBetween(now.toISOString(), end.toISOString());
+  const tasks = tasksDueBetween(now.toISOString(), end.toISOString()).filter(
+    (task) => config.BOT_MODE !== 'separate' || ['quiz', 'assignment', 'exam'].includes(task.type),
+  );
   if (tasks.length === 0) return false;
 
   const prompt = [

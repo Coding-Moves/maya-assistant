@@ -26,7 +26,7 @@ test('separate commands sound friendly and name the completed task', async () =>
   await handleOwnerText('help', send, noAi);
   await handleOwnerText('tasks', send, noAi);
   await handleOwnerText(`done ${id}`, send, noAi);
-  assert.match(replies[0], /keep an eye on your chosen groups/);
+  assert.match(replies[0], /keep an eye on every group I’m in/);
   assert.match(replies[1], /Chapter 1 quiz/);
   assert.match(replies[2], /ticked off Chapter 1 quiz/);
   assert.equal(openTasks().some((task) => task.id === id), false);

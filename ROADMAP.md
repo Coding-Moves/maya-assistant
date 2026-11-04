@@ -12,8 +12,8 @@ Steps marked 🙋 **Manual** are things a human has to do: scan a QR code, copy 
 |---|---|---|
 | **1. Core** | WhatsApp listener, task extraction, reminders, Q&A, self-chat mode | 🚧 In progress |
 | **2. Always on** | Second-number mode, persistent VM, PM2/Docker options; automatic/off-host backups deferred by owner | ✅ |
-| **3. Media** | Opt-in images and PDFs from allowed groups via Gemini vision | ✅ (live media check pending) |
-| **4. Calendar** | Opt-in Google Calendar task sync | ✅ (owner OAuth/live check pending) |
+| **3. Media** | Opt-in images, voice notes, short video and PDFs from joined groups and the owner | ✅ (new formats need live check) |
+| **4. Calendar** | Task-to-Calendar sync plus upcoming event read cache and important reminders | ✅ (owner OAuth/live check pending) |
 | **5. More sources** | Source interface and VU Classic To Do CSV import; optional daily LMS check added later | ✅ (live LMS login and import verified; next scheduled run pending) |
 | **6. Extras** | MCP server over the DB, multi-language support (e.g. Roman Urdu), simple web dashboard | 💡 Ideas |
 
@@ -111,13 +111,13 @@ Read AGENTS.md. Do Step 4 only.
 Commit when done. Do NOT open a PR.
 ```
 
-🙋 **Manual:** stop the running app before using the same auth directory with `npm run list-groups`. Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` (comma-separated).
+🙋 **Manual:** stop the running app before using the same auth directory with `npm run list-groups`. In self mode, copy the IDs you want into `GROUP_ALLOWLIST` in `.env` (comma-separated). Separate mode now reads every joined group and does not need this list.
 
 ---
 
 ### Step 5 — Router and ingest
 
-**Goal:** save messages from allowlisted groups and ignore everything else.
+**Goal:** save messages from allowed groups in self mode and every joined group in separate mode; ignore unrelated private chats and broadcasts.
 
 **Prompt:**
 ```
@@ -128,7 +128,7 @@ Read AGENTS.md and ARCHITECTURE.md. Do Step 5 only.
   - isOwnerChat(jid) → (placeholder, handled in Step 6)
   - everything else → ignore
   - In self mode, ignore any message whose text starts with the bot prefix "🤖 <BOT_NAME>:". In separate mode, ignore Maya's own outgoing messages using `key.fromMe`.
-- src/features/ingest.ts: save to messages (source 'whatsapp', external_id = key.id, chat_id = allowlisted group JID, chat_name from group metadata cache, sent_at from messageTimestamp in UTC). Deduplicate by source + chat_id + external_id.
+- src/features/ingest.ts: save to messages (source 'whatsapp', external_id = key.id, chat_id = readable group JID, chat_name from group metadata cache, sent_at from messageTimestamp in UTC). Deduplicate by source + chat_id + external_id.
 - Log at debug level only (no message text at info).
 Commit when done. Do NOT open a PR.
 ```
@@ -239,10 +239,10 @@ Then run npm run typecheck and npm run lint ONCE and fix all issues. Commit. Do 
 5. **Auth storage and privacy review:** `useMultiFileAuthState` stays for this personal deployment. Keep session files private and persistent; restrict host access. Group text and opted-in media go to Gemini. Revisit retention and storage before expanding the deployment.
 
 ## Phase 3 — Media (outline)
-Download image and PDF announcements (allowlisted groups only, with a size limit), send them to Gemini vision, and save the extracted text as a message, so the normal extraction picks it up.
+The original media phase covered images and PDFs from allowlisted groups. Separate mode now also handles voice notes, short videos, stickers, and text/CSV files from every joined group, plus direct owner media. A size limit still applies; other document types and long/large videos remain unsupported.
 
 ## Phase 4 — Google Calendar (outline)
-OAuth for a single user, plus a `calendar_event_id` column on tasks. Create, update, and delete events when tasks change. Add `CALENDAR_SYNC=true` to enable it.
+OAuth for a single user, plus a `calendar_event_id` column on tasks. Create, update, and delete events when tasks change. In separate mode, Maya also reads upcoming events hourly and privately reminds the owner once on the day of events whose title contains `important`, through the morning job or hourly check. Calendar edits do not change Maya tasks. Add `CALENDAR_SYNC=true` to enable it.
 
 ## Phase 5 — More sources (outline)
 Define a `Source<T>` interface (`start(emit)`, `stop()`) and place WhatsApp behind it. The first additional source is a credential-free VU Classic To Do CSV importer in `src/sources/vu/`; it emits normalized quiz/assignment items and upserts tasks. It does not authenticate to, poll, or scrape the LMS. See [the VU guide](docs/VU-CLASSIC-TODO.md).

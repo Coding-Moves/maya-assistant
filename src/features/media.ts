@@ -9,31 +9,40 @@ import { logger } from '../utils/logger.js';
 import { ingestGroupMessage } from './ingest.js';
 
 const mediaLogger = logger.child({ module: 'baileys-media' }, { level: 'silent' });
-const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const supportedTypes = new Set([
+  'image/jpeg', 'image/png', 'image/webp',
+  'audio/ogg', 'audio/opus', 'audio/mpeg', 'audio/mp3', 'audio/aac', 'audio/mp4', 'audio/webm',
+  'video/mp4', 'video/webm', 'video/3gpp', 'video/mpeg', 'video/mov',
+  'application/pdf', 'text/plain', 'text/csv',
+]);
+const selfModeGroupTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 
-class MediaTooLargeError extends Error {}
+export class MediaTooLargeError extends Error {}
 
-interface MediaDetails {
+export interface MediaDetails {
   mimeType: string;
   caption: string | null;
   fileLength: number | null;
+  kind: 'audio' | 'other';
 }
 
-function mediaDetails(message: WAMessage): MediaDetails | null {
+export function mediaDetails(message: WAMessage): MediaDetails | null {
   const content = unwrapMessageContent(message.message);
   const image = content?.imageMessage;
   const document = content?.documentMessage;
-  const documentType = document?.mimetype?.split(';', 1)[0]?.toLowerCase();
-  const media = image ?? (documentType === 'application/pdf' ? document : null);
+  const audio = content?.audioMessage;
+  const video = content?.videoMessage;
+  const sticker = content?.stickerMessage;
+  const media = image ?? audio ?? video ?? document ?? sticker;
   if (!media) return null;
-  const mimeType = media.mimetype?.split(';', 1)[0]?.toLowerCase() ?? '';
-  if (image && !imageTypes.has(mimeType)) return null;
-  if (!image && mimeType !== 'application/pdf') return null;
+  const mimeType = media.mimetype?.split(';', 1)[0]?.toLowerCase() ?? (sticker ? 'image/webp' : '');
+  if (!supportedTypes.has(mimeType)) return null;
   const length = media.fileLength == null ? null : Number(media.fileLength.toString());
   return {
     mimeType,
-    caption: media.caption?.trim() || null,
+    caption: (image?.caption ?? video?.caption ?? document?.caption)?.trim() || null,
     fileLength: length !== null && Number.isSafeInteger(length) ? length : null,
+    kind: audio ? 'audio' : 'other',
   };
 }
 
@@ -41,6 +50,12 @@ export function enqueueGroupMedia(message: WAMessage, chatName: string | null): 
   if (!config.MEDIA_ENABLED) return false;
   const details = mediaDetails(message);
   if (!details) return false;
+  if (config.BOT_MODE === 'self') {
+    const content = unwrapMessageContent(message.message);
+    const originalMedia = Boolean(content?.imageMessage && selfModeGroupTypes.has(details.mimeType)) ||
+      Boolean(content?.documentMessage && details.mimeType === 'application/pdf');
+    if (!originalMedia) return false;
+  }
   if (details.fileLength !== null && details.fileLength > config.MEDIA_MAX_BYTES) {
     if (details.caption) ingestGroupMessage(message, details.caption, chatName);
     logger.warn({ messageId: message.key.id }, 'Group media skipped: size limit exceeded');
@@ -56,14 +71,36 @@ export function enqueueGroupMedia(message: WAMessage, chatName: string | null): 
   return true;
 }
 
-type DownloadMedia = (message: WAMessage, socket: WASocket) => Promise<AsyncIterable<Buffer>>;
+export type DownloadMedia = (message: WAMessage, socket: WASocket) => Promise<AsyncIterable<Buffer>>;
 type RecognizeMedia = (bytes: Buffer, mimeType: string) => Promise<string>;
 
-async function download(message: WAMessage, socket: WASocket): Promise<AsyncIterable<Buffer>> {
+export async function download(message: WAMessage, socket: WASocket): Promise<AsyncIterable<Buffer>> {
   return downloadMediaMessage(message, 'stream', {}, {
     logger: mediaLogger,
     reuploadRequest: socket.updateMediaMessage,
   });
+}
+
+export async function readMediaBytes(
+  message: WAMessage,
+  socket: WASocket,
+  fetchMedia: DownloadMedia = download,
+): Promise<Buffer> {
+  const details = mediaDetails(message);
+  if (!details) throw new Error('Unsupported media type');
+  if (details.fileLength !== null && details.fileLength > config.MEDIA_MAX_BYTES)
+    throw new MediaTooLargeError('Media exceeds size limit');
+  const stream = await fetchMedia(message, socket);
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of stream) {
+    const bytes = Buffer.from(chunk);
+    size += bytes.length;
+    if (size > config.MEDIA_MAX_BYTES) throw new MediaTooLargeError('Media exceeds size limit');
+    chunks.push(bytes);
+  }
+  if (size === 0) throw new Error('Media download was empty');
+  return Buffer.concat(chunks);
 }
 
 export async function processPendingMedia(
@@ -82,17 +119,10 @@ export async function processPendingMedia(
   for (const job of pendingMediaJobs(config.MEDIA_BATCH_SIZE)) {
     try {
       const message = proto.WebMessageInfo.decode(job.payload) as WAMessage;
-      const stream = await fetchMedia(message, socket);
-      const chunks: Buffer[] = [];
-      let size = 0;
-      for await (const chunk of stream) {
-        const bytes = Buffer.from(chunk);
-        size += bytes.length;
-        if (size > config.MEDIA_MAX_BYTES) throw new MediaTooLargeError('Media exceeds size limit');
-        chunks.push(bytes);
-      }
-      if (size === 0) throw new Error('Media download was empty');
-      const text = (await recognize(Buffer.concat(chunks), job.mimeType)).trim();
+      const bytes = await readMediaBytes(message, socket, fetchMedia);
+      const text = (job.mimeType.startsWith('text/')
+        ? bytes.toString('utf8')
+        : await recognize(bytes, job.mimeType)).trim();
       if (text === 'NO_TEXT') {
         if (job.caption) completeMediaJob(job.messageId, job.caption);
         else skipMediaJob(job.messageId);
