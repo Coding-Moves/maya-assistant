@@ -13,6 +13,7 @@ const rowSchema = z.object({
   dueAt: z.string().nullable(), expiresAt: z.string().nullable(),
   reviewAt: z.string().nullable(), completedAt: z.string().nullable(),
   sourceKind: z.enum(['owner_text', 'owner_media']), sourceRef: z.string().nullable(),
+  revision: z.number().int().positive(),
   createdAt: z.string(), updatedAt: z.string(), archivedAt: z.string().nullable(),
 });
 
@@ -36,7 +37,7 @@ export interface NewMemory {
 const columns = `id, category, title, body, lifecycle, status,
   due_at AS dueAt, expires_at AS expiresAt, review_at AS reviewAt,
   completed_at AS completedAt, source_kind AS sourceKind,
-  source_ref AS sourceRef, created_at AS createdAt,
+  source_ref AS sourceRef, revision, created_at AS createdAt,
   updated_at AS updatedAt, archived_at AS archivedAt`;
 const graceMs = 7 * 24 * 60 * 60 * 1_000;
 
@@ -139,6 +140,7 @@ export function updateMemory(
   return db.transaction(() => {
     const current = getMemory(id);
     if (!current || !['active', 'review', 'completed'].includes(current.status)) throw new Error('Memory is unavailable');
+    if (current.category === 'timetable') throw new Error('Use the timetable commands to change a timetable');
     const next = {
       title: changes.title === undefined ? current.title : title.parse(changes.title),
       body: changes.body === undefined ? current.body : text.parse(changes.body),
@@ -150,6 +152,7 @@ export function updateMemory(
     validateLifecycle(current.lifecycle, next.dueAt, next.expiresAt, next.reviewAt);
     db.prepare(`UPDATE memory_items SET title = ?, body = ?, category = ?, due_at = ?,
       expires_at = ?, review_at = ?, status = CASE WHEN status = 'review' THEN 'active' ELSE status END,
+      revision = revision + 1,
       updated_at = ? WHERE id = ?`).run(
       next.title, next.body, next.category, next.dueAt, next.expiresAt, next.reviewAt, now.toISOString(), id,
     );
@@ -160,7 +163,7 @@ export function updateMemory(
 
 export function archiveMemory(id: number, now = new Date()): boolean {
   return db.transaction(() => {
-    const changed = db.prepare(`UPDATE memory_items SET status = 'archived', archived_at = ?, updated_at = ?
+    const changed = db.prepare(`UPDATE memory_items SET status = 'archived', archived_at = ?, updated_at = ?, revision = revision + 1
       WHERE id = ? AND status IN ('active', 'review', 'completed')`).run(now.toISOString(), now.toISOString(), checkedId(id)).changes;
     if (changed) audit(id, 'archive', null, now);
     return changed === 1;
@@ -169,7 +172,7 @@ export function archiveMemory(id: number, now = new Date()): boolean {
 
 export function completeMemory(id: number, now = new Date()): boolean {
   return db.transaction(() => {
-    const changed = db.prepare(`UPDATE memory_items SET status = 'completed', completed_at = ?, updated_at = ?
+    const changed = db.prepare(`UPDATE memory_items SET status = 'completed', completed_at = ?, updated_at = ?, revision = revision + 1
       WHERE id = ? AND lifecycle = 'temporary' AND status = 'active'`).run(now.toISOString(), now.toISOString(), checkedId(id)).changes;
     if (changed) audit(id, 'complete', null, now);
     return changed === 1;
@@ -202,7 +205,7 @@ export function cleanupMemories(now = new Date()): { reviewed: number; deleted: 
       ORDER BY id LIMIT 500`)
       .all(at, at);
     for (const { id } of reviewRows) {
-      db.prepare("UPDATE memory_items SET status = 'review', updated_at = ? WHERE id = ?").run(at, id);
+      db.prepare("UPDATE memory_items SET status = 'review', updated_at = ?, revision = revision + 1 WHERE id = ?").run(at, id);
       audit(id, 'review_due', null, now);
     }
     const scanTemporary = db.prepare<[number], { id: number }>(

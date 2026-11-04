@@ -3,14 +3,14 @@ import { z } from 'zod';
 import { db } from '../client.js';
 import { clearMemoryIds, getMemory, listMemories, type Memory } from './memories.js';
 
-const snapshotSchema = z.object({ id: z.number().int().positive(), updatedAt: z.string() });
+const snapshotSchema = z.object({ id: z.number().int().positive(), revision: z.number().int().positive() });
 const payloadSchema = z.object({ items: z.array(snapshotSchema).min(1).max(100) });
 
 function createConfirmation(action: 'delete' | 'clear', actorJid: string, items: Memory[], now = new Date()): string {
   if (!actorJid) throw new Error('Verified owner identity is unavailable');
   if (items.length === 0 || items.length > 100) throw new Error('Choose between one and 100 memories');
   const token = randomBytes(6).toString('hex');
-  const payload = payloadSchema.parse({ items: items.map(({ id, updatedAt }) => ({ id, updatedAt })) });
+  const payload = payloadSchema.parse({ items: items.map(({ id, revision }) => ({ id, revision })) });
   db.prepare(`INSERT INTO memory_confirmations
     (token, action, actor_jid, payload_json, expires_at) VALUES (?, ?, ?, ?, ?)`)
     .run(token, action, actorJid, JSON.stringify(payload), new Date(now.getTime() + 15 * 60_000).toISOString());
@@ -45,7 +45,7 @@ export function confirmMemoryChange(token: string, actorJid: string, now = new D
     const { items } = payloadSchema.parse(JSON.parse(row.payload_json));
     for (const snapshot of items) {
       const current = getMemory(snapshot.id);
-      if (!current || current.updatedAt !== snapshot.updatedAt)
+      if (!current || current.revision !== snapshot.revision)
         throw new Error('A memory changed; request a new confirmation');
     }
     const count = clearMemoryIds(items.map(({ id }) => id), now);

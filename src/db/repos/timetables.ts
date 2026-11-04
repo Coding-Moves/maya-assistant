@@ -139,7 +139,7 @@ export function createTimetableDraft(
       body: 'Structured class timetable', lifecycle: 'permanent',
       sourceKind: 'owner_media', sourceRef, status: 'draft',
     }, now);
-    if (previous) db.prepare('UPDATE memory_items SET updated_at = ? WHERE id = ?')
+    if (previous || pending[0]) db.prepare('UPDATE memory_items SET updated_at = ?, revision = revision + 1 WHERE id = ?')
       .run(now.toISOString(), memory.id);
     const nextVersion = Number(db.prepare<[number], { n: number }>(
       'SELECT COALESCE(MAX(version), 0) + 1 AS n FROM timetable_versions WHERE memory_id = ?',
@@ -187,6 +187,8 @@ export function correctTimetableEntry(
   const changed = db.prepare(`UPDATE timetable_entries SET ${field} = ?
     WHERE version_id = ? AND position = ?`).run(parsed, draft.version.id, position).changes;
   if (changed !== 1) throw new Error('Timetable entry not found');
+  db.prepare('UPDATE memory_items SET updated_at = ?, revision = revision + 1 WHERE id = ?')
+    .run(now.toISOString(), draft.memory.id);
   return { ...draft, entries: getEntries(draft.version.id) };
 }
 
@@ -214,7 +216,7 @@ export function confirmTimetable(token: string, actorJid: string, now = new Date
     if (currentId !== null) db.prepare("UPDATE timetable_versions SET state = 'archived' WHERE id = ?").run(currentId);
     db.prepare("UPDATE timetable_versions SET state = 'active', confirmed_at = ? WHERE id = ?")
       .run(now.toISOString(), draft.version.id);
-    db.prepare("UPDATE memory_items SET status = 'active', title = ?, source_ref = ?, updated_at = ? WHERE id = ?")
+    db.prepare("UPDATE memory_items SET status = 'active', title = ?, source_ref = ?, updated_at = ?, revision = revision + 1 WHERE id = ?")
       .run(draft.version.title, draft.version.sourceRef, now.toISOString(), draft.memory.id);
     db.prepare('UPDATE memory_confirmations SET consumed_at = ? WHERE token = ? AND consumed_at IS NULL')
       .run(now.toISOString(), token);

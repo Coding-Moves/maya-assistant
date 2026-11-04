@@ -66,10 +66,11 @@ test('temporary memory stays until the due/expiry/completion anchor plus seven d
 
 test('delete and scoped clear require owner-bound single-use confirmation and unchanged targets', () => {
   const actor = 'owner@s.whatsapp.net';
-  const item = createMemory({ category: 'private-test', title: 'A', body: 'one', lifecycle: 'permanent', sourceKind: 'owner_text' });
-  const token = requestMemoryDelete(item.id, actor, new Date('2026-01-01T00:00:00Z'));
+  const sameMillisecond = new Date('2026-01-01T00:00:00Z');
+  const item = createMemory({ category: 'private-test', title: 'A', body: 'one', lifecycle: 'permanent', sourceKind: 'owner_text' }, sameMillisecond);
+  const token = requestMemoryDelete(item.id, actor, sameMillisecond);
   assert.throws(() => confirmMemoryChange(token, 'other@s.whatsapp.net', new Date('2026-01-01T00:01:00Z')), /expired or already used/);
-  updateMemory(item.id, { body: 'changed' }, 'update', new Date('2026-01-01T00:02:00Z'));
+  updateMemory(item.id, { body: 'changed' }, 'update', sameMillisecond);
   assert.throws(() => confirmMemoryChange(token, actor, new Date('2026-01-01T00:03:00Z')), /changed/);
   const fresh = requestMemoryDelete(item.id, actor, new Date('2026-01-01T00:04:00Z'));
   assert.deepEqual(confirmMemoryChange(fresh, actor, new Date('2026-01-01T00:05:00Z')).count, 1);

@@ -27,7 +27,7 @@ Dates use `TIMEZONE` from `.env`; Maya stores UTC timestamps. For a temporary me
 - `memory delete <id>` requests deletion of one memory.
 - `memory clear category <name>` requests deletion of up to 100 memories in one named category. There is no `clear everything` command.
 
-For deletion or category clearing, Maya sends a `memory confirm <code>` instruction. The code expires after 15 minutes, is tied to the verified owner chat, works once, and rejects the operation if a targeted memory changed after the preview. Confirming a deletion cannot remove the database, WhatsApp session, `.env`, API keys, or backups. Deletion also removes a timetable's structured versions; audit metadata retains only action, ID, and time.
+For deletion or category clearing, Maya sends a `memory confirm <code>` instruction. The code expires after 15 minutes, is tied to the verified owner chat, works once, and checks each target's revision again before deleting it. Confirming a deletion cannot remove the database, WhatsApp session, `.env`, API keys, or backups. Deletion also removes a timetable's structured versions; audit metadata retains only action, ID, and time.
 
 ## Timetable image or PDF
 

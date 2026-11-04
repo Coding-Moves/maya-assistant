@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS memory_items (
   completed_at TEXT,
   source_kind TEXT NOT NULL CHECK (source_kind IN ('owner_text', 'owner_media')),
   source_ref TEXT,
+  revision INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   archived_at TEXT,
