@@ -151,4 +151,4 @@ MIT. Use it, change it, share it.
 
 ## Coding Moves Lab
 
-Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.netlify.app/lab/). The one-day reminder check and optional integrations need the owner's live validation.
+Maya is a public-source experiment in [Coding Moves Lab](https://codingmoves.com/lab/). The one-day reminder check and optional integrations need the owner's live validation.
