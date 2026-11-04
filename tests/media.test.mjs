@@ -94,6 +94,16 @@ test('queues voice notes and short video for group understanding', async () => {
   assert.deepEqual(types, ['audio/ogg', 'video/mp4']);
 });
 
+test('reads a text attachment directly without sending it as unsupported Gemini media', async () => {
+  const textFile = { ...image('text-group'), message: { documentMessage: {
+    mimetype: 'text/plain', fileLength: 4, mediaKey: Buffer.from('key'),
+  } } };
+  assert.equal(enqueueGroupMedia(textFile, 'Class'), true);
+  await processPendingMedia({ socket: {}, download: async () => Readable.from([Buffer.from('Quiz')]),
+    recognize: async () => { throw new Error('Text should not use Gemini media input'); } });
+  assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'text-group'").get().text, 'Quiz');
+});
+
 test('skips images without academic text and uses a caption when oversized', async () => {
   enqueueGroupMedia(image('media-2'), 'Class');
   await processPendingMedia({

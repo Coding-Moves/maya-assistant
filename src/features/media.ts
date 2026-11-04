@@ -113,7 +113,9 @@ export async function processPendingMedia(
     try {
       const message = proto.WebMessageInfo.decode(job.payload) as WAMessage;
       const bytes = await readMediaBytes(message, socket, fetchMedia);
-      const text = (await recognize(bytes, job.mimeType)).trim();
+      const text = (job.mimeType.startsWith('text/')
+        ? bytes.toString('utf8')
+        : await recognize(bytes, job.mimeType)).trim();
       if (text === 'NO_TEXT') {
         if (job.caption) completeMediaJob(job.messageId, job.caption);
         else skipMediaJob(job.messageId);

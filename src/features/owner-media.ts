@@ -28,14 +28,16 @@ export async function handleOwnerMedia(
   try {
     const description = await withOwnerTyping(async () => {
       const bytes = await readMediaBytes(message, sock, fetchMedia);
-      return (await spokenOrDescribe(bytes, details.mimeType)).trim();
+      return (details.mimeType.startsWith('text/')
+        ? bytes.toString('utf8')
+        : await spokenOrDescribe(bytes, details.mimeType)).trim();
     });
     if (!description || description === 'NO_SPEECH' || description === 'NO_TEXT') {
       await sendToOwner('I couldn’t make out anything clear in that. Could you send it again or add a little text?');
       return;
     }
     const input = details.kind === 'audio'
-      ? description
+      ? description.replace(/[.!?؟۔]+$/u, '').trim()
       : `${details.caption ? `${details.caption}\n\n` : 'What is in this media?\n\n'}Media content: ${description}`;
     await handleText(input);
   } catch (error) {

@@ -23,13 +23,22 @@ test('voice note transcription reaches the command handler as plain owner text',
   assert.equal(mediaDetails(message).mimeType, 'audio/ogg');
   await handleOwnerMedia(message, {}, async (bytes, type) => {
     calls.push([bytes.toString(), type]);
-    return 'done 1';
+    return 'Done 1.';
   }, async (text) => { calls.push(text); }, async () => Readable.from([Buffer.from('opus')]));
-  assert.deepEqual(calls, [['opus', 'audio/ogg'], 'done 1']);
+  assert.deepEqual(calls, [['opus', 'audio/ogg'], 'Done 1']);
 });
 
 test('video, PDFs, and image stickers are recognized as media', () => {
   assert.equal(mediaDetails({ message: { videoMessage: { mimetype: 'video/mp4' } } }).mimeType, 'video/mp4');
   assert.equal(mediaDetails({ message: { documentMessage: { mimetype: 'application/pdf' } } }).mimeType, 'application/pdf');
   assert.equal(mediaDetails({ message: { stickerMessage: {} } }).mimeType, 'image/webp');
+});
+
+test('owner text attachment reaches questions without a media model request', async () => {
+  let input = '';
+  await handleOwnerMedia({ key: { fromMe: false, id: 'text-1', remoteJid: '123@s.whatsapp.net' },
+    message: { documentMessage: { mimetype: 'text/plain', fileLength: 4 } } }, {},
+  async () => { throw new Error('Text should not use Gemini media input'); },
+  async (text) => { input = text; }, async () => Readable.from([Buffer.from('Quiz')]));
+  assert.match(input, /Media content: Quiz/);
 });
