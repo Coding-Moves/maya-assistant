@@ -33,6 +33,16 @@ test('accepts a no-pending assignment row and a midnight quiz deadline', () => {
   assert.equal(parseClassicTodoTables(input)[0].dueAt, '2026-11-01T19:00:00.000Z');
 });
 
+test('accepts a VU no-pending assignment table without column headers', () => {
+  const input = tables();
+  const emptyRow = ['No Assignment is pending for any of your course.'];
+  input.assignments.headers = emptyRow;
+  input.assignments.rows = [emptyRow];
+  const items = parseClassicTodoTables(input);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].kind, 'quiz');
+});
+
 test('rejects layout changes and malformed deadlines before importing anything', () => {
   const input = tables();
   input.assignments.headers[3] = 'Close Date';

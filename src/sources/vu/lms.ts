@@ -51,9 +51,12 @@ export function parseClassicTodoTables(tables: ClassicTodoTables): VuItem[] {
     ['quiz', tables.quizzes],
   ] as const) {
     const expectedTitle = kind === 'assignment' ? 'Assignment' : 'Title';
+    if (table.rows.length > 500) throw new Error('VU Classic To Do is limited to 500 rows per table');
+    if ([table.headers, ...table.rows].every(
+      (row) => row.length === 1 && /^No .+ pending/i.test(row[0] ?? ''),
+    )) continue;
     if (table.headers.slice(0, 4).join('|') !== `Course|${expectedTitle}|Open Date|Due Date`)
       throw new Error(`VU ${kind} table layout changed`);
-    if (table.rows.length > 500) throw new Error('VU Classic To Do is limited to 500 rows per table');
     for (const row of table.rows) {
       if (row.length === 1 && /^No .+ pending/i.test(row[0] ?? '')) continue;
       if (row.length !== 5) throw new Error(`VU ${kind} table row layout changed`);
@@ -107,8 +110,8 @@ export async function fetchClassicTodoItems(): Promise<VuItem[]> {
     if (new URL(page.url()).pathname !== new URL(TODO_URL).pathname)
       throw new Error('VU Classic To Do page did not open after sign-in');
     await page.locator('#tabHClassic').click();
-    await page.locator('#MainContent_gvAssignmentsToDo').waitFor({ state: 'attached' });
-    await page.locator('#MainContent_gvQuizzesToDo').waitFor({ state: 'attached' });
+    await page.locator('#MainContent_gvAssignmentsToDo tr').first().waitFor({ state: 'attached' });
+    await page.locator('#MainContent_gvQuizzesToDo tr').first().waitFor({ state: 'attached' });
     const tables = {
       assignments: await readTable(page, 'MainContent_gvAssignmentsToDo'),
       quizzes: await readTable(page, 'MainContent_gvQuizzesToDo'),
