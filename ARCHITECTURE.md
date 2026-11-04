@@ -52,7 +52,7 @@ flowchart TD
 - **Loop guard.** Self mode keeps the `🤖 <BOT_NAME>:` prefix and ignores it on input. Separate mode sends plain text and ignores Maya's outgoing messages through `key.fromMe`.
 - **Status isolation.** In separate mode, Maya marks only the verified owner's Status as viewed and sends a short private comment through `sendToOwner()` when it has readable text, a caption, or supported photo/video media. Status content goes to Gemini for that comment only; it is not stored or used for task extraction or future answers. Photo/video downloads are bounded by `MEDIA_MAX_BYTES`. Unsupported or oversized media without a caption is viewed without a comment. Other people's Status and all other broadcasts are ignored. An alternate PN/LID on a broadcast message never makes it an owner chat.
 - **Sources are pluggable.** `Source<T>` owns an input lifecycle and emits normalized items. WhatsApp emits group messages into `messages`; the VU CSV importer and optional daily portal reader normalize only Classic To Do quizzes and assignments and upsert them through the same source ID mapping. The portal reader opens a fresh headless browser for each check and does not retain a login session.
-- **Owner memory.** Deliberately saved facts live in `memory_items`, separate from group history and deadline tasks. Lifecycle rules distinguish permanent, semi-permanent with review dates, and temporary with a due/expiry/completion anchor plus seven-day grace. `memory_fts` indexes titles and bodies; structured filters and IDs take precedence. The ask prompt includes at most eight relevant memories. A daily 03:00 local job marks semi-permanent records for review and cleans eligible temporary records. Only owner commands can mutate memories; destructive operations use owner-bound, short-lived, single-use database confirmations.
+- **Owner memory.** Deliberately saved facts live in `memory_items`, separate from group history and deadline tasks. Lifecycle rules distinguish permanent, semi-permanent with review dates, and temporary with a due/expiry/completion anchor plus seven-day grace. `memory_fts` indexes titles and bodies; structured filters and IDs take precedence. The ask prompt includes at most eight relevant memories. A daily 03:00 local job marks semi-permanent records for review and cleans eligible temporary records. In separate mode, only verified owner text or transcribed voice can request a change; Gemini classifies the request, while application code validates retention, resolves the named target, and performs the write. Destructive operations use owner-bound, short-lived, single-use database confirmations. `/memory` and `/timetable` are optional shortcuts; developer controls start with `/debug`.
 - **Timetable versions.** An owner image/PDF is parsed into a typed `timetable_versions` draft and `timetable_entries`; the bounded original bytes are discarded. The owner can inspect/correct rows and confirm. A transaction archives the previous active version and activates the new one only after required day/time/subject validation. Old versions remain in SQLite until explicit deletion. Existing group media extraction and task reminders are unchanged.
 
 ## Tech stack
@@ -93,6 +93,7 @@ maya-assistant/
 │   │       ├── messages.ts       # insert (dedupe), getUnprocessed, quarantine, markProcessed, recent
 │   │       ├── media.ts          # Pending media jobs, completion, and quarantine
 │   │       ├── memories.ts       # Owner memory CRUD, search, lifecycle cleanup
+│   │       ├── memory-save-drafts.ts # Short-lived owner retention follow-ups
 │   │       ├── memory-confirmations.ts # Scoped destructive confirmations
 │   │       ├── timetables.ts     # Typed drafts, entries, version activation
 │   │       └── groups.ts         # Joined-group names and active membership
@@ -105,7 +106,8 @@ maya-assistant/
 │   │   ├── ingest.ts             # Save readable group messages
 │   │   ├── media.ts              # Retryable group media reading before text extraction
 │   │   ├── owner-media.ts        # Direct owner media understanding
-│   │   ├── memory.ts             # Owner memory/timetable commands and previews
+│   │   ├── memory.ts             # Memory/timetable shortcuts and previews
+│   │   ├── memory-intent.ts      # Natural owner memory requests and confirmations
 │   │   ├── calendar-read.ts      # Upcoming event read cache
 │   │   ├── calendar-reminders.ts # One-time important event reminders
 │   │   ├── status.ts             # Bounded owner Status reading and private comments
@@ -247,7 +249,7 @@ CREATE TABLE IF NOT EXISTS source_tasks (
 
 Store times in **UTC**, and convert to `TIMEZONE` only when you show them or schedule something.
 
-The live schema also has `memory_items`, `memory_fts` with insert/update/delete triggers, `memory_events`, `timetable_versions`, `timetable_entries`, and `memory_confirmations` in [`src/db/schema.sql`](src/db/schema.sql). `migrate()` applies these additively and sets SQLite `user_version = 1`; it rejects a newer database version. Memory has no foreign key into `messages` or `tasks`, so deleting a memory never deletes group history, deadlines, or auth/config. See [saved memory behavior and recovery](docs/MEMORY.md). The SQL above documents the original core schema; `schema.sql` is authoritative for all current tables.
+The live schema also has `memory_items`, `memory_fts` with insert/update/delete triggers, `memory_events`, `timetable_versions`, `timetable_entries`, `memory_confirmations`, and short-lived `memory_save_drafts` in [`src/db/schema.sql`](src/db/schema.sql). `migrate()` applies these additively and sets SQLite `user_version = 1`; it rejects a newer database version. Memory has no foreign key into `messages` or `tasks`, so deleting a memory never deletes group history, deadlines, or auth/config. See [saved memory behavior and recovery](docs/MEMORY.md). The SQL above documents the original core schema; `schema.sql` is authoritative for all current tables.
 
 Normalize stored timestamp inputs to the fixed-millisecond ISO UTC form (`YYYY-MM-DDTHH:mm:ss.sssZ`), so SQLite text ordering works at interval boundaries.
 Application updates must also write `updated_at` in the same ISO UTC format. Reset both reminder flags when a task's due date changes. Mark a reminder only after `sendToOwner()` reports a successful send.

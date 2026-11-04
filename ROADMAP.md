@@ -203,11 +203,11 @@ Read AGENTS.md. Do Step 9 only.
   - EVENING_DIGEST_CRON → tasks due tomorrow not yet evening-reminded; send; mark reminded only after successful send, passing the selected due date to `markReminded`.
   - WEEKLY_PLAN_CRON → features/weeklyPlan.ts: AI-written plan for the next 7 days from open tasks, ordered by urgency.
   - If there is nothing to send, send nothing.
-- Add a hidden command "debug run <morning|evening|weekly>" (owner only) to trigger jobs manually for testing.
+- Add an owner-only developer control `/debug <morning|evening|weekly>` to trigger jobs manually for testing.
 Commit when done. Do NOT open a PR.
 ```
 
-🙋 **Manual:** test with `maya debug run morning`.
+🙋 **Manual:** test with `/debug morning` (or `maya /debug morning` in self mode).
 
 ---
 
@@ -256,4 +256,4 @@ After the original Phase 5, an optional daily Classic To Do reader was requested
 
 ## Post-roadmap foundation: saved memory (issue #10)
 
-Owner-saved permanent, semi-permanent, and temporary memories use separate SQLite tables, keyword search, and scoped confirmation for deletion. Image/PDF class timetables go through typed extraction, preview, correction, and an atomic version switch. See [the memory guide](docs/MEMORY.md). This foundation is independent of the later agentic owner-control and unified-context issues; ordinary free-form settings control and retrieval across every source belong to those later phases.
+Owner-saved permanent, semi-permanent, and temporary memories use separate SQLite tables, keyword search, and scoped confirmation for deletion. Natural owner text and transcribed voice notes can save, find, update, and remove memories without a command format. Image/PDF class timetables go through typed extraction, preview, natural correction, and an atomic version switch. See [the memory guide](docs/MEMORY.md). This foundation is independent of the later agentic owner-control and unified-context issues; ordinary free-form settings control and retrieval across every source belong to those later phases.
