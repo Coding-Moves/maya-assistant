@@ -6,7 +6,7 @@
 
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
-Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose, picks out the things that matter, and reminds you before it's too late. You can also just ask her:
+Maya fixes that. On her own number, she quietly reads every group she has joined, keeps academic deadlines, and answers your private questions about the other groups. You can also just ask her:
 
 > **You:** Anything due this week?
 > **Maya:** Your MTH501 quiz is Tuesday at 9 AM, and CS101 assignment 3 is due Thursday at 11:59 PM. You've got this 🌿
@@ -15,19 +15,20 @@ Maya fixes that. She sits quietly in your WhatsApp, reads the groups you choose,
 
 ## What Maya can do
 
-- 👂 **Listens** only to the groups you pick. She never posts in them.
-- 🧠 **Understands** messages with AI: quizzes, assignments, exams, room changes, cancelled classes. If a date changes, she updates it. Optional image and PDF reading covers supported media in the same chosen groups.
+- 👂 **Listens** to every group she has joined in separate mode; self mode still uses `GROUP_ALLOWLIST`. She never posts in groups.
+- 🧠 **Understands** group messages with AI. In separate mode, only academic quizzes, assignments, and exams become reminder tasks. You can ask about other group activity privately. Optional media reading covers photos, voice notes, short video, PDFs, and text files within the size limit.
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
 - 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
-- 👀 **Views only your WhatsApp Status** in separate mode and sends you a short private comment when she can read its text, caption, photo, or supported video. She does not store Status content or turn it into tasks, and ignores other people's Status updates. Photo and video comments send the media to Gemini and use the configured `MEDIA_MAX_BYTES` limit, independently of `MEDIA_ENABLED` (which controls group media). Unsupported or oversized media without a caption is viewed without a comment.
+- 👀 **Views only your WhatsApp Status** in separate mode and sends you a short private comment when she can read its text, caption, photo, or supported video. She does not store Status content or turn it into tasks, and ignores other people's Status updates. Photo and video comments send the media to Gemini and use the configured `MEDIA_MAX_BYTES` limit, independently of `MEDIA_ENABLED` (which controls group and direct owner media). Unsupported or oversized Status media without a caption is viewed without a comment.
 - 📚 **Tracks VU Classic To Do deadlines** for quizzes and assignments through an optional daily portal check or a manual CSV import.
-- 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; selected group text is sent to Gemini for analysis.
+- 📅 **Connects to Google Calendar** when authorized: Maya creates events for her dated tasks, reads upcoming meetings, answers questions about them, and reminds you once on the day of events whose title contains `important`.
+- 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; joined group text is sent to Gemini for analysis in separate mode.
 - 💸 **API costs depend on your Gemini plan and usage.** Check your model's pricing and set a budget alert before leaving Maya running.
 
 ## How it works, in plain words
 
 1. Maya connects to WhatsApp as a **linked device**, the same way WhatsApp Web does.
-2. New text messages and media captions in your chosen groups are saved locally. When media reading is enabled, supported images and PDFs are sent to Gemini, and their extracted text is saved instead of the file.
+2. New text messages and media captions in joined groups are saved locally in separate mode. When media reading is enabled, supported photos, audio, video, PDFs, and text files are sent to Gemini; their descriptions or transcripts are saved instead of the file. Direct owner media is handled privately and is not saved as a group message.
 3. Every few minutes, she sends the new messages to an AI (Google Gemini), which pulls out tasks and dates.
 4. She sends reminders and answers **only to you**, in your own chat.
 
@@ -41,7 +42,7 @@ Want the technical details? See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 👉 **The safest setup is a second phone number** (a cheap SIM) just for Maya. You can start with your own number and switch later. It takes two minutes.
 
-**Respect other people's privacy.** Messages from your group, and images/PDFs when enabled, are sent to Google's AI to be understood. Only use Maya on groups where that's okay, and never share the database file.
+**Respect other people's privacy.** In separate mode, messages from every group Maya joins, and supported media when enabled, are sent to Google's AI to be understood. Only add Maya where this is okay, and never share the database file.
 
 **This is a personal tool,** not for spam, marketing, or bulk messaging.
 
@@ -72,11 +73,11 @@ Stop `npm run dev` before listing your group IDs; both commands use the same Wha
 npm run list-groups
 ```
 
-Copy the IDs of the groups you want into `GROUP_ALLOWLIST` in `.env` and restart with `npm run dev`. Maya saves new text and captions from those groups, extracts tasks every `EXTRACT_INTERVAL_MIN` minutes, answers your commands and questions, and sends scheduled reminders while running.
+In separate mode, Maya reads every group she has joined; send her `groups` privately to see their names. In self mode, copy the IDs you want into `GROUP_ALLOWLIST` in `.env` and restart. Maya saves new messages, extracts tasks every `EXTRACT_INTERVAL_MIN` minutes, answers your commands and questions, and sends scheduled reminders while running.
 
-To read JPEG, PNG, WebP, and PDF announcements, set `MEDIA_ENABLED=true`. Maya handles at most `MEDIA_BATCH_SIZE` files per extraction run and refuses files above `MEDIA_MAX_BYTES` (default 5 MB). Large files with a caption still contribute that caption. Media reading uses Gemini and can increase API usage. A failed item is retried three times, then quarantined and reported to you.
+To read supported images, WhatsApp voice notes, short videos, PDFs, and text/CSV files, set `MEDIA_ENABLED=true`. Maya handles at most `MEDIA_BATCH_SIZE` group files per extraction run and refuses files above `MEDIA_MAX_BYTES` (default 5 MB). Large group files with a caption still contribute that caption. Direct owner media gets a private size-limit reply. Other document types and large/long videos are not yet supported. Media reading uses Gemini and can increase API usage. A failed group item is retried three times, then quarantined and reported to you.
 
-Google Calendar sync is optional. To enable it, follow [the Calendar setup guide](docs/CALENDAR.md). Dated open tasks become Calendar events; changing a task updates its event, and completing or cancelling it removes the event. Sync runs with the extraction interval and retries failed requests. Task titles and details are sent to Google when enabled.
+Google Calendar sync is optional. To enable it, follow [the Calendar setup guide](docs/CALENDAR.md). Dated open tasks become Calendar events; changing a task updates its event, and completing or cancelling it removes the event. Maya also reads the next 30 days of Calendar events hourly for private questions. The morning job and hourly checks remind you once about today's events with `important` in the title. Edits made in Google Calendar do not change Maya tasks.
 
 VU students can enable an optional daily check of only the assignment and quiz tables in Classic To Do, or continue using the manual CSV importer. Follow [the VU setup guide](docs/VU-CLASSIC-TODO.md). The automatic check requires private LMS credentials and a Chromium browser on the host; Maya does not read bell, notice-board, or GDB items.
 
@@ -113,14 +114,14 @@ Everything lives in `.env`. The main ones:
 | `BOT_NAME` | Her name, and the word that wakes her up in self mode | `Maya` |
 | `BOT_MODE` | `self` = your own number, `separate` = second SIM | `separate` |
 | `OWNER_NAME` | Optional name Maya uses occasionally in separate mode | `Muawiya` |
-| `GROUP_ALLOWLIST` | Which groups she reads | `1203...@g.us` |
+| `GROUP_ALLOWLIST` | Self mode group IDs; separate mode reads all joined groups | `1203...@g.us` |
 | `TIMEZONE` | Your timezone for reminders | `Asia/Karachi` |
 | `MORNING_DIGEST_CRON` | When to send "due today" | `0 8 * * *` |
 | `EVENING_DIGEST_CRON` | When to send "due tomorrow" | `0 20 * * *` |
 | `WEEKLY_PLAN_CRON` | When to send the weekly plan | `0 20 * * 5` |
 | `GEMINI_MODEL` | Which AI model to use | `gemini-3.5-flash` |
-| `MEDIA_ENABLED` | Read supported group images and PDFs with Gemini | `false` |
-| `CALENDAR_SYNC` | Sync dated open tasks with Google Calendar | `false` |
+| `MEDIA_ENABLED` | Read supported group and direct owner media with Gemini | `false` |
+| `CALENDAR_SYNC` | Sync dated tasks to Calendar and read upcoming events | `false` |
 
 The full list is in [`.env.example`](.env.example).
 
