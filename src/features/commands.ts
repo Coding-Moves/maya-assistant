@@ -13,6 +13,7 @@ export async function handleOwnerText(
   send: typeof sendToOwner = sendToOwner,
   answer: typeof ask = ask,
   runDebug: typeof runJob = runJob,
+  sourceRef: string | null = null,
 ): Promise<void> {
   const input = text.trim();
   if (!input) return;
@@ -27,7 +28,7 @@ export async function handleOwnerText(
     clearCompletionContext();
   }
 
-  const memoryReply = handleMemoryCommand(input);
+  const memoryReply = handleMemoryCommand(input, undefined, sourceRef);
   if (memoryReply !== null) {
     await send(memoryReply);
     return;

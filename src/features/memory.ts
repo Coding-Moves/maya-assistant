@@ -51,7 +51,11 @@ function requireActor(actor: string | null): string {
   return actor;
 }
 
-export function handleMemoryCommand(input: string, actorJid: string | null = getOwnerChatJid()): string | null {
+export function handleMemoryCommand(
+  input: string,
+  actorJid: string | null = getOwnerChatJid(),
+  sourceRef: string | null = null,
+): string | null {
   const trimmed = input.trim();
   if (!/^(?:memory|timetable)(?:\s|$)/i.test(trimmed)) return null;
   try {
@@ -77,7 +81,7 @@ export function handleMemoryCommand(input: string, actorJid: string | null = get
       if (lifecycle === 'permanent' && date) return 'Permanent memories have no expiry date.';
       const item = createMemory({
         lifecycle, category: parts[0]!, title: parts[1]!, body: parts[2]!,
-        sourceKind: 'owner_text',
+        sourceKind: 'owner_text', sourceRef,
         ...(lifecycle === 'semi' && { reviewAt: dateAt(date!, '00:00') }),
         ...(lifecycle === 'temporary' && { expiresAt: dateAt(date!, '23:59') }),
       });
