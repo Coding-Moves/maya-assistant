@@ -106,7 +106,7 @@ export function startJobs(
       logger.info({ ...counts }, 'VU Classic To Do sync completed');
     } catch (error) {
       logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'VU Classic To Do sync failed');
-      await sendToOwner('I couldn’t check your VU quiz and assignment deadlines today. Please check Classic To Do directly until I’m connected again.');
+      await sendToOwner('I couldn’t update your VU quiz and assignment deadlines today. Please check Classic To Do directly; I’ll try again at the next scheduled check.');
     } finally {
       vuRunning = false;
     }
