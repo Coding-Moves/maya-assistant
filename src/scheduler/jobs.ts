@@ -13,6 +13,10 @@ import { logger } from '../utils/logger.js';
 import { cleanupMemories } from '../db/repos/memories.js';
 import { cleanupTimetableDrafts } from '../db/repos/timetables.js';
 import { sendDueOwnerReminders } from '../features/owner-reminders.js';
+import { expirePastDueTasks } from '../db/repos/tasks.js';
+import { db } from '../db/client.js';
+import { cleanupDialogue } from '../features/context.js';
+import { pruneInactiveMediaJobs } from '../db/repos/media.js';
 
 export type JobName = 'morning' | 'evening' | 'weekly';
 export type JobResult = 'sent' | 'not-sent' | 'busy' | 'failed';
@@ -82,6 +86,11 @@ export function startJobs(
     if (stopping || extractionRunning) return;
     extractionRunning = true;
     try {
+      if (config.BOT_MODE === 'separate') expirePastDueTasks();
+    } catch (error) {
+      logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Task expiry run failed');
+    }
+    try {
       await media();
     } catch (error) {
       logger.error(
@@ -123,8 +132,14 @@ export function startJobs(
     vuRunning = true;
     try {
       const counts = await vu();
+      db.prepare(`INSERT INTO source_sync_state (source, last_success_at, last_failure_at)
+        VALUES ('vu-classic-todo', ?, NULL) ON CONFLICT(source) DO UPDATE SET
+        last_success_at = excluded.last_success_at, last_failure_at = NULL`).run(new Date().toISOString());
       logger.info({ ...counts }, 'VU Classic To Do sync completed');
     } catch (error) {
+      db.prepare(`INSERT INTO source_sync_state (source, last_failure_at)
+        VALUES ('vu-classic-todo', ?) ON CONFLICT(source) DO UPDATE SET
+        last_failure_at = excluded.last_failure_at`).run(new Date().toISOString());
       logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'VU Classic To Do sync failed');
       await sendToOwner('I couldn’t update your VU quiz and assignment deadlines today. Please check Classic To Do directly; I’ll try again at the next scheduled check.');
     } finally {
@@ -149,7 +164,12 @@ export function startJobs(
       name: 'maya-weekly',
     }),
     schedule('0 3 * * *', () => {
-      if (!stopping) track(Promise.resolve().then(memoryCleanup).catch((error: unknown) => {
+      if (!stopping) track(Promise.resolve().then(() => {
+        memoryCleanup();
+        cleanupDialogue();
+        if (config.BOT_MODE === 'separate') pruneInactiveMediaJobs();
+        if (config.BOT_MODE === 'separate') expirePastDueTasks();
+      }).catch((error: unknown) => {
         logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Memory cleanup failed');
       }));
     }, {

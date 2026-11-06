@@ -80,6 +80,13 @@ function upsert(item: VuItem): 'created' | 'updated' | 'unchanged' {
     db.prepare("INSERT INTO source_tasks (source, external_id, task_id) VALUES ('vu-classic-todo', ?, ?)").run(item.externalId, id);
     return 'created';
   }
+  if (existing.status === 'expired' && item.dueAt > new Date().toISOString()) {
+    db.prepare(`UPDATE tasks SET status = 'open', subject = ?, type = ?, title = ?, due_at = ?, due_precision = ?,
+      reminded_evening = 0, reminded_morning = 0,
+      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND status = 'expired'`)
+      .run(item.course, item.kind, item.title, item.dueAt, item.duePrecision, existing.id);
+    return 'updated';
+  }
   if (existing.status !== 'open') return 'unchanged';
   if (existing.subject === item.course && existing.type === item.kind && existing.title === item.title && existing.dueAt === item.dueAt && existing.duePrecision === item.duePrecision)
     return 'unchanged';

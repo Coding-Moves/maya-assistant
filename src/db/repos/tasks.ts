@@ -20,7 +20,7 @@ export interface Task {
   details: string | null;
   dueAt: string | null;
   duePrecision: 'date' | 'time';
-  status: 'open' | 'done' | 'cancelled';
+  status: 'open' | 'done' | 'cancelled' | 'expired';
   remindedEvening: 0 | 1;
   remindedMorning: 0 | 1;
   createdAt: string;
@@ -149,6 +149,13 @@ export function markDone(id: number): boolean {
       )
       .run(checkedId(id)).changes === 1
   );
+}
+
+// A missed deadline is not evidence that the owner completed the work.
+export function expirePastDueTasks(now = new Date()): number {
+  const at = now.toISOString();
+  return db.prepare(`UPDATE tasks SET status = 'expired', updated_at = ?
+    WHERE status = 'open' AND due_at IS NOT NULL AND due_at < ?`).run(at, at).changes;
 }
 
 export function openTasks(): Task[] {
