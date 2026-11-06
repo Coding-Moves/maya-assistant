@@ -7,7 +7,9 @@ export function migrate(): void {
   db.transaction(() => {
     const version = Number(db.pragma('user_version', { simple: true }));
     if (version > 2) throw new Error(`Database schema version ${version} is newer than this Maya build`);
+    const hadMessageFts = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messages_fts'").get());
     db.exec(schema);
+    if (!hadMessageFts) db.exec("INSERT INTO messages_fts(messages_fts) VALUES ('rebuild')");
     const columns = db.prepare('PRAGMA table_info(tasks)').all() as { name: string }[];
     if (!columns.some(({ name }) => name === 'calendar_event_id')) {
       db.exec('ALTER TABLE tasks ADD COLUMN calendar_event_id TEXT');

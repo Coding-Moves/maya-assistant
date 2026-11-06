@@ -192,3 +192,24 @@ export function recentJoinedGroupMessages(chatIds: readonly string[], limit: num
   ).all(...(selected ?? []), checkedLimit(limit));
   return rows.reverse();
 }
+
+export function searchJoinedGroupMessages(query: string, chatIds: readonly string[] = [], limit = 12): Message[] {
+  const stop = new Set(['what', 'when', 'where', 'which', 'the', 'this', 'that', 'from', 'about', 'group', 'said', 'have', 'does', 'any', 'there', 'with', 'your', 'you', 'and']);
+  const words = (query.normalize('NFKC').toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
+    .filter((word) => word.length >= 2 && !stop.has(word)).slice(0, 8);
+  if (words.length === 0) return [];
+  const expression = words.map((word) => `"${word}"`).join(' OR ');
+  return db.prepare<unknown[], Message>(`SELECT messages.id, messages.source,
+    messages.external_id AS externalId, messages.chat_id AS chatId,
+    messages.chat_name AS chatName, messages.sender_name AS senderName, messages.text,
+    messages.sent_at AS sentAt, messages.processed,
+    messages.extract_attempts AS extractAttempts,
+    messages.failure_batch_id AS failureBatchId FROM messages_fts
+    JOIN messages ON messages.id = messages_fts.rowid
+    JOIN groups g ON g.id = messages.chat_id AND g.active = 1
+    WHERE messages_fts MATCH ? AND messages.source = 'whatsapp' AND messages.text <> ''
+      AND NOT EXISTS (SELECT 1 FROM media_jobs WHERE message_id = messages.id)
+      AND NOT EXISTS (SELECT 1 FROM group_policies p WHERE p.group_id = messages.chat_id AND p.retrieval_enabled = 0)
+      ${chatIds.length ? `AND messages.chat_id IN (${placeholders(chatIds.length)})` : ''}
+    ORDER BY bm25(messages_fts), messages.sent_at DESC LIMIT ?`).all(expression, ...chatIds, checkedLimit(limit));
+}
