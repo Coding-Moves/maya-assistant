@@ -19,6 +19,8 @@ const { listOwnerReminders } = await import('../src/db/repos/owner-reminders.ts'
 const { sendDueOwnerReminders } = await import('../src/features/owner-reminders.ts');
 const { handleOwnerText } = await import('../src/features/commands.ts');
 const { isOwnerControlRequest } = await import('../src/features/owner-tools.ts');
+const { createTimetableDraft, confirmTimetable } = await import('../src/db/repos/timetables.ts');
+const { localDateInTimezone } = await import('../src/utils/time.ts');
 migrate();
 setOwnerIdentity({ chatJid: '123@s.whatsapp.net', knownJids: new Set(['123@s.whatsapp.net']) });
 after(() => db.close());
@@ -131,4 +133,31 @@ test('ordinary group and WhatsApp Status questions stay on the answer path', () 
   assert.equal(isOwnerControlRequest('Have you seen my WhatsApp status?'), false);
   assert.equal(isOwnerControlRequest('Turn media reading off for Family group'), true);
   assert.equal(isOwnerControlRequest('Show my settings'), true);
+});
+
+test('next class can feed a private reminder through the bounded multi-step tool loop', async () => {
+  const localDay = localDateInTimezone(new Date());
+  const tomorrow = new Date(`${localDay}T00:00:00.000Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const weekday = (tomorrow.getUTCDay() + 6) % 7 + 1;
+  const { token } = createTimetableDraft({ is_timetable: true, title: 'Classes', valid_from: null, valid_until: null,
+    entries: [{ day_of_week: weekday, start_local: '13:00', end_local: '14:00',
+      subject: 'MTH1304', location: null, teacher: null, uncertainty: null }] },
+  owner.jid, 'Asia/Karachi', 'table-request');
+  confirmTimetable(token, owner.jid);
+  let turns = 0;
+  const result = await runOwnerAgent('Find my next class and remind me 30 minutes before it', 'request-next-class', owner,
+    async (contents) => {
+      turns += 1;
+      if (turns === 1) return call('get_next_class', {}, 'find');
+      if (turns === 2) {
+        const next = contents.at(-1).parts[0].functionResponse.response.output.data;
+        const dueAt = new Date(new Date(next.startAt).getTime() - 30 * 60_000).toISOString();
+        return call('create_reminder', { title: `${next.title} class`, dueAt }, 'remind');
+      }
+      return finish;
+    });
+  assert.equal(turns, 3);
+  assert.match(result, /MTH1304/);
+  assert.ok(listOwnerReminders().some(({ title }) => title === 'MTH1304 class'));
 });
