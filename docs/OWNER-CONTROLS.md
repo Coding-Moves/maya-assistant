@@ -28,7 +28,7 @@ Raising the media limit or switching media reading on or off needs confirmation.
 
 ## Groups and large files
 
-Every joined group stays visible by default. Its ingestion, media reading, academic task extraction, and private-answer retrieval can be changed separately. A pause holds new processing and retrieval until the specified time; it does not delete history. Turning ingestion off stops saving new messages. Turning media off prevents queued files from being read while disabled. Group names may change, so policies are keyed by group JID; ambiguous names are rejected.
+Every joined group stays visible by default. Its ingestion, media reading, academic task extraction, and private-answer retrieval can be changed separately. A pause holds new ingestion and queued processing until the specified time; past messages remain available for private answers unless retrieval is separately disabled. Turning ingestion off stops saving new messages. Turning media off prevents queued files from being read while disabled. Group names may change, so policies are keyed by group JID; ambiguous names are rejected.
 
 Group files with a declared size over the effective limit are skipped before download. Unknown-size streams stop at the limit. Separate-mode group PDFs have a 2 MB cap. Book-like PDF filenames and group audio/video over three minutes are skipped; a simple PDF page-marker check also rejects obvious documents over 40 pages after a bounded download. These checks limit memory and Gemini usage, but a compressed PDF can hide its true page count. Captions can still be stored and analyzed when group ingestion and extraction are enabled.
 

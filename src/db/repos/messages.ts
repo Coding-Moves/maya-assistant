@@ -184,7 +184,7 @@ export function recentJoinedGroupMessages(chatIds: readonly string[], limit: num
     `SELECT ${messageColumns} FROM messages
      WHERE source = 'whatsapp' AND chat_id IN (SELECT id FROM groups WHERE active = 1)
        AND NOT EXISTS (SELECT 1 FROM group_policies p WHERE p.group_id = messages.chat_id
-         AND (p.retrieval_enabled = 0 OR p.paused_until > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))
+         AND p.retrieval_enabled = 0)
        ${selected ? `AND chat_id IN (${placeholders(selected.length)})` : ''}
        AND text <> ''
        AND NOT EXISTS (SELECT 1 FROM media_jobs WHERE media_jobs.message_id = messages.id)

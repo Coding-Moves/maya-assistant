@@ -34,22 +34,23 @@ const columns: Record<GroupPolicyField, string> = {
   extraction: 'extraction_enabled', retrieval: 'retrieval_enabled',
 };
 
-function fromRow(row: PolicyRow): GroupPolicy {
+function fromRow(row: PolicyRow, now = new Date()): GroupPolicy {
   return {
     groupId: row.groupId, name: row.name, active: Boolean(row.active),
     ingest: row.ingest !== 0, media: row.media !== 0,
     extraction: row.extraction !== 0, retrieval: row.retrieval !== 0,
-    pausedUntil: row.pausedUntil, revision: row.revision ?? 0,
+    pausedUntil: row.pausedUntil && row.pausedUntil > now.toISOString() ? row.pausedUntil : null,
+    revision: row.revision ?? 0,
   };
 }
 
-export function getGroupPolicy(groupId: string): GroupPolicy | null {
+export function getGroupPolicy(groupId: string, now = new Date()): GroupPolicy | null {
   const row = db.prepare<[string], PolicyRow>(`SELECT g.id AS groupId, g.name, g.active,
     p.ingest_enabled AS ingest, p.media_enabled AS media,
     p.extraction_enabled AS extraction, p.retrieval_enabled AS retrieval,
     p.paused_until AS pausedUntil, p.revision
     FROM groups g LEFT JOIN group_policies p ON p.group_id = g.id WHERE g.id = ?`).get(groupId);
-  return row ? fromRow(row) : null;
+  return row ? fromRow(row, now) : null;
 }
 
 export function listGroupPolicies(limit = 50): GroupPolicy[] {
@@ -59,14 +60,14 @@ export function listGroupPolicies(limit = 50): GroupPolicy[] {
     p.extraction_enabled AS extraction, p.retrieval_enabled AS retrieval,
     p.paused_until AS pausedUntil, p.revision
     FROM groups g LEFT JOIN group_policies p ON p.group_id = g.id
-    WHERE g.active = 1 ORDER BY g.name COLLATE NOCASE, g.id LIMIT ?`).all(checked).map(fromRow);
+    WHERE g.active = 1 ORDER BY g.name COLLATE NOCASE, g.id LIMIT ?`).all(checked).map((row) => fromRow(row));
 }
 
 export function isGroupEnabled(groupId: string, field: GroupPolicyField, now = new Date()): boolean {
   if (config.BOT_MODE !== 'separate') return true;
-  const policy = getGroupPolicy(groupId);
+  const policy = getGroupPolicy(groupId, now);
   if (!policy) return true; // A newly received group may precede the membership refresh.
-  return policy.active && policy[field] && (!policy.pausedUntil || policy.pausedUntil <= now.toISOString());
+  return policy.active && policy[field] && (field === 'retrieval' || !policy.pausedUntil);
 }
 
 export function setGroupPolicy(groupId: string, field: GroupPolicyField, enabled: boolean): GroupPolicy {

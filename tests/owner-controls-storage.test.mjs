@@ -13,7 +13,7 @@ process.env.MEDIA_MAX_BYTES = '5000000';
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
 const { getRuntimeSetting, setRuntimeSetting, resetRuntimeSetting } = await import('../src/config/runtime.ts');
-const { getGroupPolicy, setGroupPolicy, setGroupPause } = await import('../src/db/repos/group-policies.ts');
+const { getGroupPolicy, listGroupPolicies, setGroupPolicy, setGroupPause } = await import('../src/db/repos/group-policies.ts');
 const { ingestGroupMessage } = await import('../src/features/ingest.ts');
 const { enqueueGroupMedia, processPendingMedia } = await import('../src/features/media.ts');
 const { getUnprocessed, recentJoinedGroupMessages } = await import('../src/db/repos/messages.ts');
@@ -55,7 +55,9 @@ test('group policy separately controls ingestion, extraction and retrieval', () 
   setGroupPolicy('class@g.us', 'retrieval', true);
   assert.equal(getUnprocessed(10).length, 1);
   setGroupPause('class@g.us', '2030-01-01T00:00:00Z', new Date('2029-12-10'));
+  assert.equal(listGroupPolicies().find((group) => group.groupId === 'class@g.us')?.pausedUntil, '2030-01-01T00:00:00.000Z');
   assert.equal(getUnprocessed(10).length, 0);
+  assert.equal(recentJoinedGroupMessages([], 10).length, 1);
   setGroupPause('class@g.us', null);
   assert.equal(getUnprocessed(10).length, 1);
 });
