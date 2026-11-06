@@ -83,10 +83,10 @@ export async function handleOwnerText(
         ? tasks.length === 0
           ? "You're all caught up. No open tasks right now 🌿"
           : tasks.length === 1
-            ? `You have ${tasks[0]!.title}${tasks[0]!.dueAt ? ` due ${formatTaskDue(tasks[0]!)}` : ' on your list'}. To tick it off, send done ${tasks[0]!.id}.`
+            ? `You have ${tasks[0]!.subject ? `${tasks[0]!.subject} — ` : ''}${tasks[0]!.title}${tasks[0]!.dueAt ? ` due ${formatTaskDue(tasks[0]!)}` : ' on your list'}. To tick it off, send done ${tasks[0]!.id}.`
             : tasks.length === 2
-              ? `You have ${tasks.map((task) => `${task.title}${task.dueAt ? ` due ${formatTaskDue(task)}` : ''}`).join(' and ')} coming up. To tick one off, send done ${tasks[0]!.id} or done ${tasks[1]!.id}.`
-            : `Here's what you have coming up:\n${tasks.map((task) => `• ${task.title}${task.dueAt ? ` — ${formatTaskDue(task)}` : ''} (done ${task.id})`).join('\n')}`
+              ? `You have ${tasks.map((task) => `${task.subject ? `${task.subject} — ` : ''}${task.title}${task.dueAt ? ` due ${formatTaskDue(task)}` : ''}`).join(' and ')} coming up. To tick one off, send done ${tasks[0]!.id} or done ${tasks[1]!.id}.`
+            : `Here's what you have coming up:\n${tasks.map((task) => `• ${task.subject ? `${task.subject} — ` : ''}${task.title}${task.dueAt ? ` — ${formatTaskDue(task)}` : ''} (done ${task.id})`).join('\n')}`
         : tasks.length === 0
           ? 'No open tasks.'
           : tasks

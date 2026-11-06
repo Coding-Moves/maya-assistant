@@ -66,3 +66,26 @@ test('done number still uses the explicit command and small talk reaches ask', a
   await handleOwnerText('hi', send, ask);
   assert.equal(questions.at(-1), 'hi');
 });
+
+test('duplicate quiz titles are distinguished by course and a short numbered follow-up', async () => {
+  clearCompletionContext();
+  const first = createTask({ type: 'quiz', subject: 'MTH1304', title: 'Quiz 1' });
+  const second = createTask({ type: 'quiz', subject: 'CS101', title: 'Quiz 1' });
+  await handleOwnerText("I've done Quiz 1", send, ask);
+  assert.match(replies.at(-1), /MTH1304 — Quiz 1/);
+  assert.match(replies.at(-1), /CS101 — Quiz 1/);
+  await handleOwnerText('Quiz 1', send, ask);
+  assert.match(replies.at(-1), /1\. MTH1304/);
+  await handleOwnerText('1', send, ask);
+  assert.match(replies.at(-1), /MTH1304 — Quiz 1/);
+  assert.equal(openTasks().some((task) => task.id === first), false);
+  assert.equal(openTasks().some((task) => task.id === second), true);
+});
+
+test('a named course completion works without task IDs', async () => {
+  clearCompletionContext();
+  const target = createTask({ type: 'quiz', subject: 'MTH1304', title: 'Jumble Match Quiz' });
+  await handleOwnerText('Jumble Match quiz 1304 is done', send, ask);
+  assert.match(replies.at(-1), /MTH1304 — Jumble Match Quiz/);
+  assert.equal(openTasks().some((task) => task.id === target), false);
+});
