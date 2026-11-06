@@ -127,10 +127,10 @@ const registry: OwnerTool[] = [
       confirm: ({ key }) => key === 'MEDIA_ENABLED',
       preview: ({ key }) => `reset ${key} to ${String(config[key])}` }),
   tool('list_tasks', 'List at most 20 open quiz, assignment, exam and other tasks.', 'read', empty,
-    () => 'tasks', () => { const tasks = db.prepare<[], { id: number; title: string; dueAt: string | null }>(
-      "SELECT id, title, due_at AS dueAt FROM tasks WHERE status = 'open' ORDER BY due_at IS NULL, due_at, id LIMIT 20",
-    ).all(); return { message: tasks.length ? `Here are your next tasks:\n${tasks.map(({ id, title, dueAt }) =>
-      `• ${id}: ${title.slice(0, 60)}${dueAt ? ` — ${dueAt}` : ''}`).join('\n').slice(0, 1_800)}` : 'You have no open tasks right now.', data: tasks }; }),
+    () => 'tasks', () => { const tasks = db.prepare<[], { id: number; subject: string | null; title: string; dueAt: string | null }>(
+      "SELECT id, subject, title, due_at AS dueAt FROM tasks WHERE status = 'open' ORDER BY due_at IS NULL, due_at, id LIMIT 20",
+    ).all(); return { message: tasks.length ? `Here are your next tasks:\n${tasks.map(({ id, subject, title, dueAt }) =>
+      `• ${id}: ${subject ? `${subject} — ` : ''}${title.slice(0, 60)}${dueAt ? ` — ${dueAt}` : ''}`).join('\n').slice(0, 1_800)}` : 'You have no open tasks right now.', data: tasks }; }),
   tool('mark_task_done', 'Mark exactly one existing open task done by its ID.', 'reversible',
     z.object({ taskId: z.number().int().positive() }).strict(), ({ taskId }) => `task:${taskId}`,
     ({ taskId }) => {

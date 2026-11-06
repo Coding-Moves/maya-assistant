@@ -21,6 +21,7 @@ const { handleOwnerText } = await import('../src/features/commands.ts');
 const { isOwnerControlRequest } = await import('../src/features/owner-tools.ts');
 const { createTimetableDraft, confirmTimetable } = await import('../src/db/repos/timetables.ts');
 const { localDateInTimezone } = await import('../src/utils/time.ts');
+const { createTask } = await import('../src/db/repos/tasks.ts');
 migrate();
 setOwnerIdentity({ chatJid: '123@s.whatsapp.net', knownJids: new Set(['123@s.whatsapp.net']) });
 after(() => db.close());
@@ -160,4 +161,13 @@ test('next class can feed a private reminder through the bounded multi-step tool
   assert.equal(turns, 3);
   assert.match(result, /MTH1304/);
   assert.ok(listOwnerReminders().some(({ title }) => title === 'MTH1304 class'));
+});
+
+test('natural task listing includes course codes for duplicate quiz names', async () => {
+  createTask({ type: 'quiz', subject: 'MTH1304', title: 'Quiz 1' });
+  createTask({ type: 'quiz', subject: 'CS101', title: 'Quiz 1' });
+  const answer = await runOwnerAgent('Show my tasks', 'request-course-tasks', owner,
+    async () => call('list_tasks', {}));
+  assert.match(answer, /MTH1304 — Quiz 1/);
+  assert.match(answer, /CS101 — Quiz 1/);
 });
