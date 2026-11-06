@@ -119,3 +119,19 @@ test('separate mode handles only inbound owner chat and ignores its own outgoing
     clearOwnerIdentity();
   }
 });
+
+test('owner messages are serialized and excess work is bounded', async () => {
+  setOwnerIdentity({ chatJid: '123@s.whatsapp.net', knownJids: new Set(['123@s.whatsapp.net']) });
+  const ev = new EventEmitter();
+  const detach = attachWhatsAppRouter({ ev });
+  try {
+    const ids = Array.from({ length: 5 }, (_, i) => createTask({ type: 'quiz', title: `Burst quiz ${i}` }));
+    ev.emit('messages.upsert', { type: 'notify', messages: ids.map((id) => ({
+      key: { id: `burst-${id}`, remoteJid: '123@s.whatsapp.net', fromMe: false },
+      message: { conversation: `done ${id}` }, messageTimestamp: 1_700_000_000,
+    })) });
+    await waitForOwnerReplies();
+    assert.equal(openTasks().some(({ id }) => id === ids[4]), true);
+    assert.ok(ids.slice(0, 4).every((id) => !openTasks().some((task) => task.id === id)));
+  } finally { detach(); clearOwnerIdentity(); }
+});
