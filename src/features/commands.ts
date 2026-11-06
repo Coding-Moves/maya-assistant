@@ -9,6 +9,8 @@ import { clearCompletionContext, handleNaturalDone } from './natural-done.js';
 import { handleMemoryShortcut } from './memory.js';
 import { handleNaturalMemory } from './memory-intent.js';
 import { getOwnerChatJid } from '../channels/whatsapp/identity.js';
+import { handleOwnerControlConfirmation, runOwnerAgent, type OwnerMessageIdentity } from './owner-agent.js';
+import { isOwnerControlRequest } from './owner-tools.js';
 
 export async function handleOwnerText(
   text: string,
@@ -16,10 +18,16 @@ export async function handleOwnerText(
   answer: typeof ask = ask,
   runDebug: typeof runJob = runJob,
   sourceRef: string | null = null,
+  inputKind: 'owner_text' | 'owner_voice' | 'media_description' = 'owner_text',
+  identity: OwnerMessageIdentity = { jid: null },
 ): Promise<void> {
   const input = text.trim();
   if (!input) return;
   const lower = input.toLowerCase();
+  if (inputKind === 'media_description') {
+    await answer(input);
+    return;
+  }
 
   const memoryReply = handleMemoryShortcut(input);
   if (memoryReply !== null) {
@@ -28,6 +36,18 @@ export async function handleOwnerText(
   }
 
   if (config.BOT_MODE === 'separate') {
+    const confirmation = identity.jid ? handleOwnerControlConfirmation(input, sourceRef, identity) : null;
+    if (confirmation !== null) {
+      await send(confirmation);
+      return;
+    }
+    if (identity.jid && isOwnerControlRequest(input) && !/^(?:groups?|tasks?|list|help|\?)$/iu.test(input)) {
+      const controlReply = await runOwnerAgent(input, sourceRef, identity);
+      if (controlReply !== null) {
+        await send(controlReply);
+        return;
+      }
+    }
     const naturalMemoryReply = await handleNaturalMemory(input, getOwnerChatJid(), sourceRef);
     if (naturalMemoryReply !== null) {
       await send(naturalMemoryReply);

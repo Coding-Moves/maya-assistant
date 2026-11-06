@@ -72,7 +72,9 @@ export async function handleOwnerMedia(
     const input = details.kind === 'audio'
       ? description.replace(/[.!?؟۔]+$/u, '').trim()
       : `${details.caption ? `${details.caption}\n\n` : 'What is in this media?\n\n'}Media content: ${description}`;
-    await handleText(input, undefined, undefined, undefined, message.key.id ?? null);
+    await handleText(input, undefined, undefined, undefined, message.key.id ?? null,
+      details.kind === 'audio' ? 'owner_voice' : 'media_description',
+      { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt });
   } catch (error) {
     logger.warn({ messageId: message.key.id, errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not read owner media');
     logger.debug({ err: error }, 'Owner media failure details');
