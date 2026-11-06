@@ -34,7 +34,12 @@ test('separate mode reads group voice, video, and text attachments', async () =>
     mimetype: 'text/plain', fileLength: 4, mediaKey: Buffer.from('key'),
   } }), 'Family'), true);
   const modelTypes = [];
-  await processPendingMedia({ socket: {}, download: async () => Readable.from([Buffer.from('Quiz')]),
+  await processPendingMedia({ socket: {}, download: async (item) => {
+    const content = item.message;
+    return Readable.from([content.audioMessage ? Buffer.from('OggS')
+      : content.videoMessage ? Buffer.from([0, 0, 0, 12, 102, 116, 121, 112, 105, 115, 111, 109])
+        : Buffer.from('Quiz')]);
+  },
     recognize: async (_bytes, mimeType) => { modelTypes.push(mimeType); return 'Voice or video description'; } });
   assert.deepEqual(modelTypes, ['audio/ogg', 'video/mp4']);
   assert.deepEqual(db.prepare('SELECT text FROM messages ORDER BY id').all(), [
@@ -42,4 +47,15 @@ test('separate mode reads group voice, video, and text attachments', async () =>
     { text: 'Voice or video description' },
     { text: 'Quiz' },
   ]);
+});
+
+test('a mismatched media signature is skipped without sending bytes to Gemini', async () => {
+  enqueueGroupMedia(message('wrong-type', { imageMessage: {
+    mimetype: 'image/jpeg', caption: 'Quiz notice', fileLength: 4, mediaKey: Buffer.from('key'),
+  } }), 'Family');
+  let modelCalls = 0;
+  await processPendingMedia({ socket: {}, download: async () => Readable.from([Buffer.from('OggS')]),
+    recognize: async () => { modelCalls += 1; return 'Should not run'; } });
+  assert.equal(modelCalls, 0);
+  assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'wrong-type'").get().text, 'Quiz notice');
 });

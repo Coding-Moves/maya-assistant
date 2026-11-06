@@ -5,6 +5,7 @@ import { migrate } from './db/migrate.js';
 import { logger } from './utils/logger.js';
 import { startJobs } from './scheduler/jobs.js';
 import { suppressSignalSessionLogs } from './utils/signal-console.js';
+import { expirePastDueTasks } from './db/repos/tasks.js';
 
 let stopJobs: (() => Promise<void>) | null = null;
 let shutdownWork: Promise<void> | null = null;
@@ -71,6 +72,7 @@ process.on('uncaughtException', (error: Error) => {
   requestShutdown(1);
 });
 migrate();
+if (config.BOT_MODE === 'separate') expirePastDueTasks();
 logger.info({ botName: config.BOT_NAME }, 'Maya starting');
 void startWhatsAppSource();
 stopJobs = startJobs();

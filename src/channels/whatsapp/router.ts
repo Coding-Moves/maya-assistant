@@ -9,7 +9,7 @@ import { commentOnOwnerStatus } from '../../features/status.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat, verifyOwnerLid } from './identity.js';
 import { parseMessageText, unwrapMessageContent } from './parse.js';
-import { markOwnerMessageRead, markOwnerStatusRead } from './send.js';
+import { markOwnerMessageRead, markOwnerStatusRead, sendToOwner } from './send.js';
 import { ownerInput } from './trigger.js';
 
 const allowedGroups = new Set(config.GROUP_ALLOWLIST);
@@ -29,6 +29,8 @@ export function attachWhatsAppRouter(
   replyToOwnerStatus: (message: WAMessage, sock: WASocket) => Promise<void> = commentOnOwnerStatus,
 ): () => void {
   let active = true;
+  let ownerChain: Promise<void> = Promise.resolve();
+  let queuedOwnerMessages = 0;
   const handledStatusIds = new Set<string>();
   const groupNames = new Map<string, string>();
   const rememberGroup = (group: Partial<GroupMetadata>) => {
@@ -84,20 +86,28 @@ export function attachWhatsAppRouter(
     );
     const input = text ? ownerInput(text, message.key.fromMe) : null;
     if (!input && !hasMedia) return;
-    void markOwnerMessageRead(message.key);
-    const reply = (hasMedia
-      ? handleOwnerMedia(message, sock)
-      : input
-        ? handleOwnerText(input, undefined, undefined, undefined, message.key.id ?? null,
-          'owner_text', { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt })
-        : Promise.resolve()
-    ).catch((error: unknown) => {
+    if (config.BOT_MODE === 'separate' && queuedOwnerMessages >= 4) {
+      void sendToOwner('I have a few messages to finish first. Could you send that again in a moment?')
+        .catch(() => logger.warn('Could not send owner queue notice'));
+      return;
+    }
+    const work = async () => {
+      void markOwnerMessageRead(message.key);
+      if (hasMedia) await handleOwnerMedia(message, sock);
+      else if (input) await handleOwnerText(input, undefined, undefined, undefined, message.key.id ?? null,
+        'owner_text', { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt });
+    };
+    if (config.BOT_MODE === 'separate') queuedOwnerMessages += 1;
+    const reply = (config.BOT_MODE === 'separate' ? ownerChain.then(work) : work()).catch((error: unknown) => {
       logger.error(
         { errorType: error instanceof Error ? error.name : 'unknown' },
         'Could not handle owner message',
       );
       logger.debug({ err: error }, 'Owner command failure details');
+    }).finally(() => {
+      if (config.BOT_MODE === 'separate') queuedOwnerMessages -= 1;
     });
+    if (config.BOT_MODE === 'separate') ownerChain = reply;
     pendingOwnerReplies.add(reply);
     void reply.finally(() => pendingOwnerReplies.delete(reply));
   };

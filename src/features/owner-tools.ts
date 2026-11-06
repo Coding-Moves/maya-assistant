@@ -11,6 +11,7 @@ import { cancelOwnerReminder, createOwnerReminder, getOwnerReminder, listOwnerRe
   updateOwnerReminder } from '../db/repos/owner-reminders.js';
 import { activeTimetables } from '../db/repos/timetables.js';
 import { formatTimetable } from './memory.js';
+import { localDateInTimezone, localDateTimeToUtc } from '../utils/time.js';
 
 export const toolResultSchema = z.object({ message: z.string().min(1).max(2_000), data: z.unknown().optional() });
 export type ToolResult = z.output<typeof toolResultSchema>;
@@ -126,10 +127,10 @@ const registry: OwnerTool[] = [
       confirm: ({ key }) => key === 'MEDIA_ENABLED',
       preview: ({ key }) => `reset ${key} to ${String(config[key])}` }),
   tool('list_tasks', 'List at most 20 open quiz, assignment, exam and other tasks.', 'read', empty,
-    () => 'tasks', () => { const tasks = db.prepare<[], { id: number; title: string; dueAt: string | null }>(
-      "SELECT id, title, due_at AS dueAt FROM tasks WHERE status = 'open' ORDER BY due_at IS NULL, due_at, id LIMIT 20",
-    ).all(); return { message: tasks.length ? `Here are your next tasks:\n${tasks.map(({ id, title, dueAt }) =>
-      `• ${id}: ${title.slice(0, 60)}${dueAt ? ` — ${dueAt}` : ''}`).join('\n').slice(0, 1_800)}` : 'You have no open tasks right now.', data: tasks }; }),
+    () => 'tasks', () => { const tasks = db.prepare<[], { id: number; subject: string | null; title: string; dueAt: string | null }>(
+      "SELECT id, subject, title, due_at AS dueAt FROM tasks WHERE status = 'open' ORDER BY due_at IS NULL, due_at, id LIMIT 20",
+    ).all(); return { message: tasks.length ? `Here are your next tasks:\n${tasks.map(({ id, subject, title, dueAt }) =>
+      `• ${id}: ${subject ? `${subject} — ` : ''}${title.slice(0, 60)}${dueAt ? ` — ${dueAt}` : ''}`).join('\n').slice(0, 1_800)}` : 'You have no open tasks right now.', data: tasks }; }),
   tool('mark_task_done', 'Mark exactly one existing open task done by its ID.', 'reversible',
     z.object({ taskId: z.number().int().positive() }).strict(), ({ taskId }) => `task:${taskId}`,
     ({ taskId }) => {
@@ -167,6 +168,36 @@ const registry: OwnerTool[] = [
       return { message: items.length ? `Here are your saved memories:\n${items.map(({ id, title }) => `• ${id}: ${title.slice(0, 80)}`).join('\n')}` : 'I have no saved memories yet.', data: items }; }),
   tool('show_timetable', 'Show the first page of the active class timetable, if one exists.', 'read', empty,
     () => 'timetable', () => ({ message: activeTimetables().slice(0, 1).map((table) => formatTimetable(table)).join('\n') || 'I do not have an active timetable yet.' })),
+  tool('get_next_class', 'Find the next unambiguous class in the active confirmed timetable. Returns its exact UTC start for a follow-up reminder.', 'read', empty,
+    () => 'next-class', () => {
+      const now = new Date();
+      const candidates = activeTimetables().flatMap((table) => {
+        const entries = table.entries.filter((entry) => entry.dayOfWeek && entry.startLocal && entry.subject && !entry.uncertainty);
+        const found: { title: string; startAt: string }[] = [];
+        for (let offset = 0; offset < 8; offset++) {
+          const localToday = localDateInTimezone(now);
+          const date = new Date(`${localToday}T00:00:00.000Z`);
+          date.setUTCDate(date.getUTCDate() + offset);
+          const day = date.toISOString().slice(0, 10);
+          if (table.version.validFrom && day < table.version.validFrom ||
+            table.version.validUntil && day > table.version.validUntil) continue;
+          const weekday = (date.getUTCDay() + 6) % 7 + 1;
+          for (const entry of entries) {
+            if (entry.dayOfWeek !== weekday) continue;
+            try {
+              const startAt = localDateTimeToUtc(day, entry.startLocal!);
+              if (startAt > now.toISOString()) found.push({ title: entry.subject!, startAt });
+            } catch { /* Skip a local time that does not exist at a timezone transition. */ }
+          }
+        }
+        return found;
+      }).sort((a, b) => a.startAt.localeCompare(b.startAt));
+      const next = candidates[0];
+      if (next && candidates[1]?.startAt === next.startAt && candidates[1].title !== next.title)
+        return { message: `Two classes are listed at ${next.startAt}. Please tell me which one you mean before I set a reminder.` };
+      return next ? { message: `Your next class is ${next.title} at ${next.startAt}.`, data: next }
+        : { message: 'I cannot find a future class with a clear day and time in your active timetable.' };
+    }),
   tool('cleanup_expired_memories', 'Delete only temporary memories whose expiry grace period has passed; preview exact targets before confirmation.', 'destructive', empty,
     () => { const items = expiredTemporaryMemories();
       if (items.length > 20) throw new Error('Too many expired memories for one safe cleanup');

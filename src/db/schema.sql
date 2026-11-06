@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   due_at           TEXT,                   -- ISO UTC; NULL if no date
   due_precision    TEXT NOT NULL DEFAULT 'time', -- 'date' for VU items with no exact time
   calendar_event_id TEXT,                   -- deterministic Google Calendar event ID
-  status           TEXT NOT NULL DEFAULT 'open',  -- open | done | cancelled
+  status           TEXT NOT NULL DEFAULT 'open',  -- open | done | cancelled | expired
   reminded_evening INTEGER NOT NULL DEFAULT 0,
   reminded_morning INTEGER NOT NULL DEFAULT 0,
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -116,8 +116,45 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS idx_messages_unprocessed ON messages(processed, sent_at);
 CREATE INDEX IF NOT EXISTS idx_messages_failure_batch ON messages(failure_batch_id);
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+  text, content='messages', content_rowid='id', tokenize='unicode61 remove_diacritics 2'
+);
+CREATE TRIGGER IF NOT EXISTS messages_fts_insert AFTER INSERT ON messages BEGIN
+  INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_delete AFTER DELETE ON messages BEGIN
+  INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.id, old.text);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_update AFTER UPDATE OF text ON messages BEGIN
+  INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.id, old.text);
+  INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
+END;
 CREATE INDEX IF NOT EXISTS idx_media_jobs_attempts ON media_jobs(attempts, message_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, due_at);
+
+-- One owner-bound, short-lived clarification for indistinguishable task names.
+CREATE TABLE IF NOT EXISTS owner_task_choices (
+  actor_jid TEXT PRIMARY KEY,
+  candidate_ids_json TEXT NOT NULL,
+  language TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
+-- Short private conversation continuity, purged after 48 hours.
+CREATE TABLE IF NOT EXISTS owner_dialogue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor_jid TEXT NOT NULL,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_owner_dialogue_actor ON owner_dialogue(actor_jid, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS source_sync_state (
+  source TEXT PRIMARY KEY,
+  last_success_at TEXT,
+  last_failure_at TEXT
+);
 
 CREATE TABLE IF NOT EXISTS calendar_jobs (
   task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,

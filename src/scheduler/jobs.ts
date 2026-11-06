@@ -13,6 +13,9 @@ import { logger } from '../utils/logger.js';
 import { cleanupMemories } from '../db/repos/memories.js';
 import { cleanupTimetableDrafts } from '../db/repos/timetables.js';
 import { sendDueOwnerReminders } from '../features/owner-reminders.js';
+import { expirePastDueTasks } from '../db/repos/tasks.js';
+import { cleanupDialogue } from '../features/context.js';
+import { pruneInactiveMediaJobs } from '../db/repos/media.js';
 
 export type JobName = 'morning' | 'evening' | 'weekly';
 export type JobResult = 'sent' | 'not-sent' | 'busy' | 'failed';
@@ -82,6 +85,11 @@ export function startJobs(
     if (stopping || extractionRunning) return;
     extractionRunning = true;
     try {
+      if (config.BOT_MODE === 'separate') expirePastDueTasks();
+    } catch (error) {
+      logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Task expiry run failed');
+    }
+    try {
       await media();
     } catch (error) {
       logger.error(
@@ -149,7 +157,12 @@ export function startJobs(
       name: 'maya-weekly',
     }),
     schedule('0 3 * * *', () => {
-      if (!stopping) track(Promise.resolve().then(memoryCleanup).catch((error: unknown) => {
+      if (!stopping) track(Promise.resolve().then(() => {
+        memoryCleanup();
+        cleanupDialogue();
+        if (config.BOT_MODE === 'separate') pruneInactiveMediaJobs();
+        if (config.BOT_MODE === 'separate') expirePastDueTasks();
+      }).catch((error: unknown) => {
         logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Memory cleanup failed');
       }));
     }, {

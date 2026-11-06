@@ -68,3 +68,11 @@ export function failMediaJob(messageId: number): boolean {
     return true;
   })();
 }
+
+export function pruneInactiveMediaJobs(limit = 100): number {
+  const ids = db.prepare<[number], { message_id: number }>(`SELECT j.message_id FROM media_jobs j
+    JOIN messages m ON m.id = j.message_id LEFT JOIN groups g ON g.id = m.chat_id
+    WHERE g.id IS NULL OR g.active = 0 ORDER BY j.message_id LIMIT ?`).all(limit);
+  for (const { message_id } of ids) skipMediaJob(message_id);
+  return ids.length;
+}

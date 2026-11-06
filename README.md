@@ -2,7 +2,7 @@
 
 **Your personal WhatsApp assistant that never misses a deadline.**
 
-**Development status:** Core and Phases 2–5 are implemented. Media reading, Google Calendar, and daily VU Classic To Do checks require opt-in setup. Live VU login and import have been verified; the next unattended daily run still needs confirmation. The live Calendar check remains with the owner.
+**Development status:** Core and Phases 2–5 are implemented. The separate-number assistant now selects bounded, relevant context for private answers and can carry a short follow-up across a restart. Media reading, Google Calendar, and daily VU Classic To Do checks require opt-in setup. Live VU login and import have been verified; the next unattended daily run still needs confirmation. The live Calendar check remains with the owner.
 
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
@@ -103,9 +103,11 @@ To save a consistent SQLite snapshot while Maya is running, use `npm run backup-
 
 **On a second number:** save it as "Maya" in your contacts and message her directly. You can write `done 4`, `hi`, or ask a question without using her name first. She replies in plain text, shows typing while answering with AI, and marks your message read when she starts replying. Messages from other people are ignored.
 
-You can also say “I've done it” or “ho gaya”. If one open task or a task you just discussed clearly matches, Maya ticks it off. If several could match, she asks you which one by name.
+You can also say “I've done it”, “MTH1304 quiz is done”, or “ho gaya”. If one open task or a task you just discussed clearly matches, Maya ticks it off. If several could match, she shows their course and due date; reply with its name or a numbered choice. A passed deadline is marked *expired*, never silently *done*. Maya checks expiry during scheduled work.
 
 To save something, tell Maya naturally in your private chat or a voice note: “Remember permanently that I prefer short reminders.” If you do not say how long to keep it, she asks. You can ask what she saved, change or archive a named memory, or ask to delete it; deletion needs a clear follow-up confirmation. Send a timetable image or PDF and say it is your timetable. Maya previews the classes and waits for “Yes, save the timetable” before activating it. `/memory` and `/timetable` are optional one-word shortcuts. See [the memory guide](docs/MEMORY.md). Timetable reading requires `MEDIA_ENABLED=true` in separate mode and uses the same media size limit.
+
+Private answers use [bounded, source-labelled context](docs/PHASE3.md). The context includes matching group messages, tasks, saved memories, timetable rows and enabled Calendar data when relevant; it does not send the whole database to Gemini. `/timetable` displays the saved timetable; send an image or PDF to add one. To exercise the deterministic Phase 3 fixtures, run `npm run eval:phase3`.
 
 Don't like the name? Set `BOT_NAME` in `.env` to anything you want.
 

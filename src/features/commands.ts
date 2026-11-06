@@ -1,7 +1,7 @@
 import { sendToOwner } from '../channels/whatsapp/send.js';
 import { config } from '../config/env.js';
 import { joinedGroups } from '../db/repos/groups.js';
-import { markDone, openTasks } from '../db/repos/tasks.js';
+import { completableTask, markDone, openTasks } from '../db/repos/tasks.js';
 import { runJob } from '../scheduler/jobs.js';
 import { formatTaskDue } from '../utils/time.js';
 import { ask } from './ask.js';
@@ -83,10 +83,10 @@ export async function handleOwnerText(
         ? tasks.length === 0
           ? "You're all caught up. No open tasks right now 🌿"
           : tasks.length === 1
-            ? `You have ${tasks[0]!.title}${tasks[0]!.dueAt ? ` due ${formatTaskDue(tasks[0]!)}` : ' on your list'}. To tick it off, send done ${tasks[0]!.id}.`
+            ? `You have ${tasks[0]!.subject ? `${tasks[0]!.subject} — ` : ''}${tasks[0]!.title}${tasks[0]!.dueAt ? ` due ${formatTaskDue(tasks[0]!)}` : ' on your list'}. To tick it off, send done ${tasks[0]!.id}.`
             : tasks.length === 2
-              ? `You have ${tasks.map((task) => `${task.title}${task.dueAt ? ` due ${formatTaskDue(task)}` : ''}`).join(' and ')} coming up. To tick one off, send done ${tasks[0]!.id} or done ${tasks[1]!.id}.`
-            : `Here's what you have coming up:\n${tasks.map((task) => `• ${task.title}${task.dueAt ? ` — ${formatTaskDue(task)}` : ''} (done ${task.id})`).join('\n')}`
+              ? `You have ${tasks.map((task) => `${task.subject ? `${task.subject} — ` : ''}${task.title}${task.dueAt ? ` due ${formatTaskDue(task)}` : ''}`).join(' and ')} coming up. To tick one off, send done ${tasks[0]!.id} or done ${tasks[1]!.id}.`
+            : `Here's what you have coming up:\n${tasks.map((task) => `• ${task.subject ? `${task.subject} — ` : ''}${task.title}${task.dueAt ? ` — ${formatTaskDue(task)}` : ''} (done ${task.id})`).join('\n')}`
         : tasks.length === 0
           ? 'No open tasks.'
           : tasks
@@ -98,7 +98,8 @@ export async function handleOwnerText(
     );
     return;
   }
-  if (/^(?:done|complete)(?:\s|$)/i.test(input)) {
+  if (/^(?:done|complete)(?:\s|$)/i.test(input) &&
+      (config.BOT_MODE === 'self' || /^(?:done|complete)\s+[1-9]\d*$/i.test(input))) {
     const match = /^(?:done|complete)\s+([1-9]\d*)$/i.exec(input);
     const id = match ? Number(match[1]) : NaN;
     if (!Number.isSafeInteger(id)) {
@@ -107,12 +108,12 @@ export async function handleOwnerText(
         : 'Use: done <task ID> or complete <task ID>.');
       return;
     }
-    const task = openTasks().find((item) => item.id === id);
-    const done = markDone(id);
+    const task = Number.isSafeInteger(id) ? completableTask(id) : undefined;
+    const done = task ? markDone(id) : false;
     await send(config.BOT_MODE === 'separate'
       ? done && task
-        ? `Done! I've ticked off ${task.title} for you 🌿`
-        : `I couldn't find an open task with number ${id}. Send tasks and I'll show you what's open.`
+        ? `Done! I've ticked off ${task.subject ? `${task.subject} — ` : ''}${task.title} for you 🌿`
+        : `I couldn't find an unfinished task with number ${id}. Send tasks and I'll show you what's open.`
       : done ? `Task #${id} marked done.` : `Open task #${id} was not found.`);
     return;
   }
