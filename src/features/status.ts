@@ -27,7 +27,7 @@ async function statusMedia(message: WAMessage, sock: WASocket, fetch: Download):
   const mimeType = media?.mimetype?.split(';', 1)[0]?.toLowerCase();
   if (!media || !mimeType || !supportedMedia.has(mimeType)) return null;
   const declaredLength = media.fileLength == null ? null : Number(media.fileLength.toString());
-  if (declaredLength !== null && declaredLength > getRuntimeSetting('MEDIA_MAX_BYTES')) return null;
+  if (declaredLength !== null && declaredLength > (getRuntimeSetting('MEDIA_MAX_BYTES') as number)) return null;
 
   try {
     const stream = await fetch(message, sock);
@@ -36,7 +36,7 @@ async function statusMedia(message: WAMessage, sock: WASocket, fetch: Download):
     for await (const chunk of stream) {
       const bytes = Buffer.from(chunk);
       size += bytes.length;
-      if (size > getRuntimeSetting('MEDIA_MAX_BYTES')) return null;
+      if (size > (getRuntimeSetting('MEDIA_MAX_BYTES') as number)) return null;
       chunks.push(bytes);
     }
     return size > 0 ? { bytes: Buffer.concat(chunks), mimeType } : null;

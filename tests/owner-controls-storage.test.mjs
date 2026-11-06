@@ -68,6 +68,13 @@ test('oversized group file is never downloaded and media policy blocks queued fi
   assert.equal(enqueueGroupMedia(file('book', 11_000_000), 'Class'), true);
   assert.equal(pendingMediaJobs(10).length, 0);
   assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'book'").get().text, 'Quiz date is Friday');
+  const namedBook = { ...file('named-book', 100_000), message: { documentMessage: {
+    mimetype: 'application/pdf', fileLength: 100_000, fileName: 'CS101_Course_Book.pdf',
+    caption: 'Read chapter 2', mediaKey: Buffer.from('key'),
+  } } };
+  assert.equal(enqueueGroupMedia(namedBook, 'Class'), true);
+  assert.equal(pendingMediaJobs(10).length, 0);
+  assert.equal(db.prepare("SELECT text FROM messages WHERE external_id = 'named-book'").get().text, 'Read chapter 2');
   assert.equal(enqueueGroupMedia(file('small', 100), 'Class'), true);
   assert.equal(pendingMediaJobs(10).length, 1);
   setGroupPolicy('class@g.us', 'media', false);

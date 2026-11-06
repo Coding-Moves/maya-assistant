@@ -18,6 +18,8 @@ const supportedTypes = new Set([
   'application/pdf', 'text/plain', 'text/csv',
 ]);
 const selfModeGroupTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+// Group PDFs are capped more tightly than direct owner media to avoid sending books to Gemini.
+const separateGroupPdfLimit = 2_000_000;
 
 export class MediaTooLargeError extends Error {}
 
@@ -60,9 +62,18 @@ export function enqueueGroupMedia(message: WAMessage, chatName: string | null): 
       Boolean(content?.documentMessage && details.mimeType === 'application/pdf');
     if (!originalMedia) return false;
   }
-  if (details.fileLength !== null && details.fileLength > getRuntimeSetting('MEDIA_MAX_BYTES')) {
+  const mediaContent = unwrapMessageContent(message.message);
+  const documentName = mediaContent?.documentMessage?.fileName ?? '';
+  const duration = Number(mediaContent?.audioMessage?.seconds ?? mediaContent?.videoMessage?.seconds ?? 0);
+  const groupLimit = config.BOT_MODE === 'separate' && details.mimeType === 'application/pdf'
+    ? Math.min(getRuntimeSetting('MEDIA_MAX_BYTES') as number, separateGroupPdfLimit)
+    : getRuntimeSetting('MEDIA_MAX_BYTES') as number;
+  if ((details.fileLength !== null && details.fileLength > groupLimit) ||
+    (config.BOT_MODE === 'separate' && Number.isFinite(duration) && duration > 180) ||
+    (config.BOT_MODE === 'separate' && details.mimeType === 'application/pdf' &&
+      /(?:textbook|course[\s_-]?book|e[\s_-]?book)/iu.test(documentName))) {
     if (details.caption) ingestGroupMessage(message, details.caption, chatName);
-    logger.warn({ messageId: message.key.id }, 'Group media skipped: size limit exceeded');
+    logger.warn({ messageId: message.key.id }, 'Group media skipped: large or book-like document');
     return true;
   }
 
@@ -89,20 +100,20 @@ export async function readMediaBytes(
   message: WAMessage,
   socket: WASocket,
   fetchMedia: DownloadMedia = download,
+  maxBytes: number = getRuntimeSetting('MEDIA_MAX_BYTES') as number,
 ): Promise<Buffer> {
   const details = mediaDetails(message);
   if (!details) throw new Error('Unsupported media type');
-  const limit = getRuntimeSetting('MEDIA_MAX_BYTES') as number;
+  const limit = maxBytes;
   if (details.fileLength !== null && details.fileLength > limit)
     throw new MediaTooLargeError('Media exceeds size limit');
   const stream = await fetchMedia(message, socket);
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of stream) {
-    const bytes = Buffer.from(chunk);
-    size += bytes.length;
+    size += chunk.length;
     if (size > limit) throw new MediaTooLargeError('Media exceeds size limit');
-    chunks.push(bytes);
+    chunks.push(Buffer.from(chunk));
   }
   if (size === 0) throw new Error('Media download was empty');
   return Buffer.concat(chunks);
@@ -124,7 +135,13 @@ export async function processPendingMedia(
   for (const job of pendingMediaJobs(getRuntimeSetting('MEDIA_BATCH_SIZE') as number)) {
     try {
       const message = proto.WebMessageInfo.decode(job.payload) as WAMessage;
-      const bytes = await readMediaBytes(message, socket, fetchMedia);
+      const bytes = await readMediaBytes(message, socket, fetchMedia,
+        config.BOT_MODE === 'separate' && job.mimeType === 'application/pdf'
+          ? Math.min(getRuntimeSetting('MEDIA_MAX_BYTES') as number, separateGroupPdfLimit)
+          : getRuntimeSetting('MEDIA_MAX_BYTES') as number);
+      if (config.BOT_MODE === 'separate' && job.mimeType === 'application/pdf' &&
+        (bytes.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length > 40)
+        throw new MediaTooLargeError('Group PDF has too many pages');
       const text = (job.mimeType.startsWith('text/')
         ? bytes.toString('utf8')
         : await recognize(bytes, job.mimeType)).trim();
