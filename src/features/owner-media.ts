@@ -1,7 +1,7 @@
 import type { WAMessage, WASocket } from 'baileys';
 import { ApiError } from '@google/genai';
 import { z } from 'zod';
-import { generateJson, generateMediaJson, understandOwnerMedia } from '../ai/gemini.js';
+import { generateJson, generateMediaJson, transcribeTimetableMedia, understandOwnerMedia } from '../ai/gemini.js';
 import { sendToOwner, withOwnerTyping } from '../channels/whatsapp/send.js';
 import { getOwnerChatJid, isOwnerChat } from '../channels/whatsapp/identity.js';
 import { config } from '../config/env.js';
@@ -24,7 +24,7 @@ export async function extractTimetableWithFallback(
   bytes: Buffer,
   mimeType: string,
   direct: typeof generateMediaJson = generateMediaJson,
-  describe: typeof understandOwnerMedia = understandOwnerMedia,
+  describe: typeof transcribeTimetableMedia = transcribeTimetableMedia,
   fromText: typeof generateJson = generateJson,
 ): Promise<TimetableExtraction> {
   try {
