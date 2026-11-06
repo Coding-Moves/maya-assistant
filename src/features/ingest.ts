@@ -2,6 +2,7 @@ import type { WAMessage } from 'baileys';
 import { config } from '../config/env.js';
 import { insertMessage, type NewMessage } from '../db/repos/messages.js';
 import { rememberGroup } from '../db/repos/groups.js';
+import { isGroupEnabled } from '../db/repos/group-policies.js';
 
 const allowedGroups = new Set(config.GROUP_ALLOWLIST);
 
@@ -37,5 +38,6 @@ export function ingestGroupMessage(message: WAMessage, text: string, chatName: s
   const normalized = normalizeGroupMessage(message, text, chatName);
   if (!normalized) return null;
   if (config.BOT_MODE === 'separate') rememberGroup(normalized.chatId, chatName);
+  if (!isGroupEnabled(normalized.chatId, 'ingest')) return null;
   return insertMessage(normalized);
 }

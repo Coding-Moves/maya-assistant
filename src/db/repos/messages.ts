@@ -1,5 +1,6 @@
 import { db } from '../client.js';
 import { normalizeUtcIso } from '../../utils/time.js';
+import { config } from '../../config/env.js';
 
 export interface Message {
   id: number;
@@ -83,6 +84,10 @@ export function getUnprocessed(limit: number): Message[] {
       `SELECT ${messageColumns} FROM messages
        WHERE processed = 0 AND NOT EXISTS
          (SELECT 1 FROM media_jobs WHERE media_jobs.message_id = messages.id)
+       ${config.BOT_MODE === 'separate' ? `AND (source != 'whatsapp' OR
+         EXISTS (SELECT 1 FROM groups g WHERE g.id = messages.chat_id AND g.active = 1))
+         AND NOT EXISTS (SELECT 1 FROM group_policies p WHERE p.group_id = messages.chat_id
+           AND (p.ingest_enabled = 0 OR p.extraction_enabled = 0 OR p.paused_until > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))` : ''}
        ORDER BY sent_at, id LIMIT ?`,
     )
     .all(checkedLimit(limit));
@@ -178,6 +183,8 @@ export function recentJoinedGroupMessages(chatIds: readonly string[], limit: num
   const rows = db.prepare<unknown[], Message>(
     `SELECT ${messageColumns} FROM messages
      WHERE source = 'whatsapp' AND chat_id IN (SELECT id FROM groups WHERE active = 1)
+       AND NOT EXISTS (SELECT 1 FROM group_policies p WHERE p.group_id = messages.chat_id
+         AND (p.retrieval_enabled = 0 OR p.paused_until > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))
        ${selected ? `AND chat_id IN (${placeholders(selected.length)})` : ''}
        AND text <> ''
        AND NOT EXISTS (SELECT 1 FROM media_jobs WHERE media_jobs.message_id = messages.id)
