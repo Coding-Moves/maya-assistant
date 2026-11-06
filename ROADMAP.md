@@ -257,3 +257,7 @@ After the original Phase 5, an optional daily Classic To Do reader was requested
 ## Post-roadmap foundation: saved memory (issue #10)
 
 Owner-saved permanent, semi-permanent, and temporary memories use separate SQLite tables, keyword search, and scoped confirmation for deletion. Natural owner text and transcribed voice notes can save, find, update, and remove memories without a command format. Image/PDF class timetables go through typed extraction, preview, natural correction, and an atomic version switch. See [the memory guide](docs/MEMORY.md). This foundation is independent of the later agentic owner-control and unified-context issues; ordinary free-form settings control and retrieval across every source belong to those later phases.
+
+## Post-roadmap owner control (issue #11)
+
+In separate mode, the verified owner can use natural text or transcribed voice for safe runtime settings, per-group monitoring policies, and private reminders. Gemini may request only typed, registered tools; application code authorizes and executes them with bounded turns, confirmations, replay protection, and an audit trail. The deployment environment still owns secrets and startup-only values. Group media and PDFs are treated as untrusted data and cannot invoke owner tools. See [owner controls](docs/OWNER-CONTROLS.md). The unified source/context work in issue #12 remains separate.
