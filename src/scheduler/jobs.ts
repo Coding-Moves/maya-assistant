@@ -14,7 +14,6 @@ import { cleanupMemories } from '../db/repos/memories.js';
 import { cleanupTimetableDrafts } from '../db/repos/timetables.js';
 import { sendDueOwnerReminders } from '../features/owner-reminders.js';
 import { expirePastDueTasks } from '../db/repos/tasks.js';
-import { db } from '../db/client.js';
 import { cleanupDialogue } from '../features/context.js';
 import { pruneInactiveMediaJobs } from '../db/repos/media.js';
 
@@ -132,14 +131,8 @@ export function startJobs(
     vuRunning = true;
     try {
       const counts = await vu();
-      db.prepare(`INSERT INTO source_sync_state (source, last_success_at, last_failure_at)
-        VALUES ('vu-classic-todo', ?, NULL) ON CONFLICT(source) DO UPDATE SET
-        last_success_at = excluded.last_success_at, last_failure_at = NULL`).run(new Date().toISOString());
       logger.info({ ...counts }, 'VU Classic To Do sync completed');
     } catch (error) {
-      db.prepare(`INSERT INTO source_sync_state (source, last_failure_at)
-        VALUES ('vu-classic-todo', ?) ON CONFLICT(source) DO UPDATE SET
-        last_failure_at = excluded.last_failure_at`).run(new Date().toISOString());
       logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'VU Classic To Do sync failed');
       await sendToOwner('I couldn’t update your VU quiz and assignment deadlines today. Please check Classic To Do directly; I’ll try again at the next scheduled check.');
     } finally {
