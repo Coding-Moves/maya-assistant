@@ -28,6 +28,21 @@ import { logger } from '../utils/logger.js';
 type GenerateExtraction = (prompt: string) => Promise<ExtractionResult>;
 type NotifyOwner = (text: string) => Promise<boolean>;
 
+function normalizedWords(value: string): string {
+  return ` ${(value.toLocaleLowerCase().normalize('NFKC').match(/[\p{L}\p{N}]+/gu) ?? []).join(' ')} `;
+}
+
+function supportsExpiredReschedule(task: Task, message: Message, action: Extract<ExtractionResult['actions'][number], { op: 'update' }>): boolean {
+  if (task.status !== 'expired') return true;
+  if (!action.due_at || normalizeUtcIso(action.due_at) <= new Date().toISOString()) return false;
+  if (action.subject !== undefined && action.subject !== task.subject ||
+    action.type !== undefined && action.type !== task.type ||
+    action.title !== undefined && action.title !== task.title) return false;
+  const source = normalizedWords(message.text);
+  return Boolean(task.title && source.includes(normalizedWords(task.title)) &&
+    (!task.subject || source.includes(normalizedWords(task.subject))));
+}
+
 function applyActions(
   result: ExtractionResult,
   messages: readonly Message[],
@@ -55,6 +70,10 @@ function applyActions(
             'Action referenced a task outside the candidate task list',
           );
         if (action.op === 'update') {
+          const existing = tasks.find(({ id }) => id === action.task_id)!;
+          const source = messages.find(({ id }) => id === action.source_msg_ref)!;
+          if (!supportsExpiredReschedule(existing, source, action))
+            throw new Error('Expired task reschedule needs a future date and the same course and title in its source message');
           if (
             !['subject', 'type', 'title', 'details', 'due_at'].some(
               (field) => field in action,

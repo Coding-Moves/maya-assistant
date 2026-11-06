@@ -32,3 +32,15 @@ test('a later group reschedule reopens the same expired task with message proven
   assert.equal(openTasks()[0].id, id);
   assert.equal(openTasks()[0].lastMsgId, messageId);
 });
+
+test('a different course cannot reopen an expired quiz with the same generic title', async () => {
+  const id = createTask({ type: 'quiz', subject: 'CS101', title: 'Quiz 1',
+    dueAt: '2026-01-01T09:00:00.000Z' });
+  expirePastDueTasks();
+  const messageId = insertMessage({ externalId: 'wrong-course', chatId: 'class@g.us',
+    text: 'MTH1304 Quiz 1 moved to 1 February 2027 at 9 AM', sentAt: new Date().toISOString() });
+  await extractOnce(async () => ({ actions: [{ op: 'update', task_id: id,
+    due_at: '2027-02-01T09:00:00.000Z', source_msg_ref: messageId }] }), async () => true);
+  assert.equal(db.prepare('SELECT status FROM tasks WHERE id = ?').get(id).status, 'expired');
+  assert.equal(db.prepare('SELECT extract_attempts FROM messages WHERE id = ?').get(messageId).extract_attempts, 1);
+});

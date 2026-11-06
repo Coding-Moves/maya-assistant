@@ -18,7 +18,7 @@ export function extractionPrompt(
       : 'Use source_msg_ref equal to the id of the message that supports each action. Use task_id only from the supplied open tasks.',
     'Resolve relative dates using each message sentAt and the given timezone. Output due_at as ISO UTC. If a date is unclear, use null; never guess.',
     config.BOT_MODE === 'separate'
-      ? 'Ignore chatter and acknowledgements. Prefer updating or cancelling an existing task over creating a duplicate. An expired task may be updated only when a message clearly moves that same subject and title to a future due date. Do not treat expiry as completion.'
+      ? 'Ignore chatter and acknowledgements. Prefer updating or cancelling an existing open task over creating a duplicate. An expired task may be updated only when its exact course and title appear in the source message and that message clearly moves it to a future due date. Do not rename or cancel expired tasks. Do not treat expiry as completion.'
       : 'Ignore chatter and acknowledgements. Prefer updating or cancelling an existing task over creating a duplicate.',
     'For create, provide subject, type, title, details, due_at, and source_msg_ref. Use null for unknown subject, details, or due_at.',
     'For update, include only fields that actually changed. For cancel, include a concise reason if available.',
