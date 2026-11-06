@@ -1,5 +1,6 @@
 import { db } from '../client.js';
 import { normalizeUtcIso } from '../../utils/time.js';
+import { config } from '../../config/env.js';
 
 export type TaskType =
   | 'quiz'
@@ -117,9 +118,13 @@ export function updateTask(id: number, changes: TaskChanges): boolean {
     values.push(changes.duePrecision);
   }
 
+  const reopensExpired = config.BOT_MODE === 'separate' && changes.dueAt != null &&
+    normalizeUtcIso(changes.dueAt) > new Date().toISOString();
+  if (reopensExpired) assignments.push("status = CASE WHEN status = 'expired' THEN 'open' ELSE status END");
+
   return (
     db
-      .prepare(`UPDATE tasks SET ${assignments.join(', ')} WHERE id = ? AND status = 'open'`)
+      .prepare(`UPDATE tasks SET ${assignments.join(', ')} WHERE id = ? AND status ${reopensExpired ? "IN ('open', 'expired')" : "= 'open'"}`)
       .run(...values, checkedId(id)).changes === 1
   );
 }
@@ -165,6 +170,12 @@ export function openTasks(): Task[] {
        ORDER BY due_at IS NULL, due_at, id`,
     )
     .all();
+}
+
+export function recentExpiredTasks(now = new Date(), limit = 20): Task[] {
+  return db.prepare<[string, number], Task>(`SELECT ${taskColumns} FROM tasks
+    WHERE status = 'expired' AND updated_at >= ? ORDER BY updated_at DESC, id DESC LIMIT ?`)
+    .all(new Date(now.getTime() - 30 * 24 * 60 * 60_000).toISOString(), limit);
 }
 
 export function taskIdsForSource(source: string): Set<number> {

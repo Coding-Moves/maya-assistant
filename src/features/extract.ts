@@ -2,6 +2,7 @@ import { extractionPrompt } from '../ai/prompts.js';
 import { generateJson } from '../ai/gemini.js';
 import { extractionSchema, type ExtractionResult } from '../ai/schemas.js';
 import { sendToOwner } from '../channels/whatsapp/send.js';
+import { config } from '../config/env.js';
 import { getRuntimeSetting } from '../config/runtime.js';
 import { db } from '../db/client.js';
 import {
@@ -17,6 +18,7 @@ import {
   cancelTask,
   createTask,
   openTasks,
+  recentExpiredTasks,
   updateTask,
   type Task,
 } from '../db/repos/tasks.js';
@@ -50,7 +52,7 @@ function applyActions(
       } else {
         if (!taskIds.has(action.task_id))
           throw new Error(
-            'Action referenced a task outside the open task list',
+            'Action referenced a task outside the candidate task list',
           );
         if (action.op === 'update') {
           if (
@@ -103,7 +105,7 @@ export async function extractOnce(
   const messages = getUnprocessed(getRuntimeSetting('EXTRACT_BATCH_SIZE') as number);
   if (messages.length > 0) {
     try {
-      const tasks = openTasks();
+      const tasks = config.BOT_MODE === 'separate' ? [...openTasks(), ...recentExpiredTasks()] : openTasks();
       const result = extractionSchema.parse(
         await generate(extractionPrompt(messages, tasks)),
       );
