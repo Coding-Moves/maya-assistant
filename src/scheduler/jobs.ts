@@ -12,6 +12,7 @@ import { sendToOwner } from '../channels/whatsapp/send.js';
 import { logger } from '../utils/logger.js';
 import { cleanupMemories } from '../db/repos/memories.js';
 import { cleanupTimetableDrafts } from '../db/repos/timetables.js';
+import { sendDueOwnerReminders } from '../features/owner-reminders.js';
 
 export type JobName = 'morning' | 'evening' | 'weekly';
 export type JobResult = 'sent' | 'not-sent' | 'busy' | 'failed';
@@ -156,6 +157,15 @@ export function startJobs(
       noOverlap: true,
       name: 'maya-memory-cleanup',
     }),
+    ...(config.BOT_MODE === 'separate' ? [schedule('* * * * *', () => {
+      if (!stopping) track(sendDueOwnerReminders().catch((error: unknown) => {
+        logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'Owner reminder run failed');
+      }));
+    }, {
+      timezone: config.TIMEZONE,
+      noOverlap: true,
+      name: 'maya-owner-reminders',
+    })] : []),
   ];
   if (config.VU_LMS_SYNC) {
     jobs.push(schedule(config.VU_SYNC_CRON, () => {

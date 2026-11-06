@@ -61,6 +61,28 @@ CREATE TABLE IF NOT EXISTS owner_action_audit (
   occurred_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS owner_agent_requests (
+  actor_jid TEXT NOT NULL,
+  source_ref TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('claimed', 'completed')),
+  reply TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (actor_jid, source_ref)
+);
+
+CREATE TABLE IF NOT EXISTS owner_reminders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  due_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'cancelled')),
+  sent_at TEXT,
+  source_ref TEXT,
+  revision INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_owner_reminders_due ON owner_reminders(status, sent_at, due_at);
+
 CREATE TABLE IF NOT EXISTS extraction_failures (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   failed_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
