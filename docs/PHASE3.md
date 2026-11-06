@@ -12,7 +12,7 @@ verified owner message or transcribed voice
   → sendToOwner()
 ```
 
-The owner-tool loop still allows only registered tools, three model turns and six calls. It can read the next clear class from the confirmed timetable, then create a private reminder before it. It never gives Gemini shell, SQL, arbitrary URLs, credentials, or a recipient choice. A pending task clarification is bound to the configured owner JID and expires after ten minutes; a bare choice cannot confirm another kind of pending action.
+The owner-tool loop still allows only registered tools, three model turns and six calls. It can read the next clear class from the confirmed timetable, then create a private reminder before it. It never gives Gemini shell, SQL, arbitrary URLs, credentials, or a recipient choice. A pending task clarification is bound to the configured owner JID and expires after ten minutes; a bare choice cannot confirm another kind of pending action. The owner may mark a recently expired task done by name, or any expired task by its exact `done <id>` command; expiry itself never asserts completion.
 
 ## Evidence selection
 
@@ -45,7 +45,7 @@ Downloaded owner media bytes are not saved as a memory. Group media jobs hold Wh
 ## Reliability and validation
 
 - Owner requests run in arrival order with at most four queued/in-flight messages, so simultaneous media uploads cannot fan out across the 1 GB VM. Group media runs serially in batches of at most `MEDIA_BATCH_SIZE` (maximum three). Streamed downloads stop when actual bytes exceed the configured limit. Gemini text and JSON calls have a 20-second request timeout; media calls have 45 seconds. Transient API errors retain the existing bounded retries.
-- Academic expiry runs during the extraction cycle and daily cleanup. Calendar jobs are queued by the existing task-status trigger, so an expired task's event is removed on the next Calendar sync. A later VU due-date change can reopen its source task; group extraction can match a recently expired task and reopen it only when the same subject/title gets a clear future date. A crash between a send and its DB update can still duplicate a reminder.
+- Academic expiry runs at startup, during the extraction cycle and daily cleanup. Calendar jobs are queued by the existing task-status trigger, so an expired task's event is removed on the next Calendar sync. A later VU due-date change can reopen its source task; group extraction can match a recently expired task and reopen it only when the source message names the same course/title and supplies a clear future date. A crash between a send and its DB update can still duplicate a reminder.
 - Run `npm run eval:phase3` for deterministic, no-API fixtures covering relevance, group-policy isolation, follow-up context, prompt size, natural completion, multi-step owner tools and timetable fallback. The context fixture prints evidence count, byte size and local RSS. Existing tests cover WhatsApp owner verification, unsupported media, retries and confirmation safety.
 - Before deploying a schema change, run `npm run backup-db` and keep the private snapshot. The migration is additive; it creates the message FTS index and backfills existing message text. Check `sudo systemctl status maya` and the service journal after deployment. The first index build may take longer on a large database.
 
