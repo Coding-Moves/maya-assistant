@@ -36,7 +36,7 @@ test('tool calls are bounded and a sensitive increase waits for one-use confirma
   assert.equal(getRuntimeSetting('MEDIA_MAX_BYTES'), 5_000_000);
   assert.equal(handleOwnerControlConfirmation('yes I finished my quiz', 'unrelated', owner), null);
   assert.equal(getRuntimeSetting('MEDIA_MAX_BYTES'), 5_000_000);
-  assert.match(handleOwnerControlConfirmation('yes', 'request-2', owner), /10 MB/);
+  assert.match(handleOwnerControlConfirmation('ہاں', 'request-2', owner), /10 MB/);
   assert.equal(getRuntimeSetting('MEDIA_MAX_BYTES'), 10_000_000);
   assert.equal(handleOwnerControlConfirmation('yes', 'request-3', owner), null);
   const sameMessage = await runOwnerAgent('Maya, increase media limit to 10 MB', 'request-1', owner,
@@ -82,15 +82,26 @@ test('a non-owner chat cannot reach Gemini or execute a tool', async () => {
 
 test('group changes require an exact owner-mentioned group and confirmation', async () => {
   rememberGroup('family@g.us', 'Family');
+  rememberGroup('family-2@g.us', 'Family 2');
   rememberGroup('study@g.us', 'Study');
   assert.match(await runOwnerAgent('Turn media off for Family group', 'request-7', owner,
     async () => call('set_group_policy', { group: 'Study', field: 'media', enabled: false })), /name the exact joined group/i);
   assert.equal(getGroupPolicy('study@g.us').media, true);
+  assert.match(await runOwnerAgent('Turn media off for Family 2 group', 'request-7b', owner,
+    async () => call('set_group_policy', { group: 'Family', field: 'media', enabled: false })), /name the exact joined group/i);
   assert.match(await runOwnerAgent('Turn media off for Family group', 'request-8', owner,
-    async () => call('set_group_policy', { group: 'Family', field: 'media', enabled: false })), /confirm/i);
+    async () => call('set_group_policy', { group: 'family@g.us', field: 'media', enabled: false })), /confirm/i);
   assert.equal(getGroupPolicy('family@g.us').media, true);
-  assert.match(handleOwnerControlConfirmation('yes', 'request-9', owner), /off for Family/);
+  assert.equal(handleOwnerControlConfirmation('yes, turn media off for Family 2 group', 'request-8b', owner), null);
+  assert.match(handleOwnerControlConfirmation('yes, turn media off for Family group', 'request-9', owner), /off for Family/);
   assert.equal(getGroupPolicy('family@g.us').media, false);
+});
+
+test('Urdu cancellation leaves a proposed setting unchanged', async () => {
+  assert.match(await runOwnerAgent('Turn media reading on', 'request-9b', owner,
+    async () => call('set_runtime_setting', { key: 'MEDIA_ENABLED', value: true })), /confirm/i);
+  assert.match(handleOwnerControlConfirmation('نہیں', 'request-9c', owner), /left it as it was/);
+  assert.equal(getRuntimeSetting('MEDIA_ENABLED'), false);
 });
 
 test('owner reminders send once after their due time and retry a failed send', async () => {

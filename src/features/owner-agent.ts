@@ -29,6 +29,26 @@ function requireOwner(identity: OwnerMessageIdentity): string {
   return actor;
 }
 
+function mentionsExactGroup(text: string, groupId: string): boolean {
+  const said = text.toLocaleLowerCase().normalize('NFKC');
+  const groups = db.prepare<[], { id: string; name: string | null }>(
+    'SELECT id, name FROM groups WHERE active = 1',
+  ).all();
+  const matches = groups.map((group) => {
+    const score = [group.name, group.id].reduce((longest, value) => {
+      if (!value) return longest;
+      const name = value.toLocaleLowerCase().normalize('NFKC');
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+      const named = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}(?=$|[^\\p{L}\\p{N}])`, 'u').test(said);
+      return named ? Math.max(longest, name.length) : longest;
+    }, 0);
+    return { id: group.id, score };
+  }).filter(({ score }) => score > 0);
+  const longest = Math.max(0, ...matches.map(({ score }) => score));
+  return matches.filter(({ score }) => score === longest).length === 1 &&
+    matches.some(({ id, score }) => id === groupId && score === longest);
+}
+
 function runTool(tool: OwnerTool, rawArgs: unknown, ownerText: string, actor: string, sourceRef: string | null, index: number):
   { pending: boolean; result: ToolResult } {
   const args = tool.parse(rawArgs);
@@ -36,8 +56,7 @@ function runTool(tool: OwnerTool, rawArgs: unknown, ownerText: string, actor: st
   if (tool.scope !== 'verified_owner') throw new Error('That operation is not authorized');
   if (['set_group_policy', 'pause_group'].includes(tool.name)) {
     const group = getGroupPolicy(target.split(':')[0]!);
-    const requested = ownerText.toLocaleLowerCase().normalize('NFKC');
-    if (!group || ![group.name, group.groupId].some((value) => value && requested.includes(value.toLocaleLowerCase().normalize('NFKC'))))
+    if (!group || !mentionsExactGroup(ownerText, group.groupId))
       throw new Error('Please name the exact joined group you want to change.');
   }
   if (['update_reminder', 'cancel_reminder'].includes(tool.name)) {
@@ -153,7 +172,7 @@ export function handleOwnerControlConfirmation(text: string, sourceRef: string |
   if (pending.length === 0) return null;
   if (/^(?:no|cancel|nah|nahi|نہیں)[\s،,.!]*$/iu.test(text.trim()))
     return rejectOwnerProposal(actor, sourceRef) ? 'Okay, I left it as it was.' : 'That change is no longer pending.';
-  if (!/^(?:yes|yeah|yep|confirm|haan|han|ہاں)(?:\b|[\s،,])/iu.test(text.trim())) return null;
+  if (!/^(?:yes|yeah|yep|confirm|haan|han|ہاں)(?=$|[\s،,.!])/iu.test(text.trim())) return null;
   const bareYes = /^(?:yes|yeah|yep|confirm|haan|han|ہاں)[\s،,.!]*(?:please|do it)?[\s،,.!]*$/iu.test(text.trim());
   if (bareYes) {
     const otherPending = db.prepare<[string, string], { n: number }>(`SELECT COUNT(*) AS n FROM memory_confirmations
@@ -163,9 +182,10 @@ export function handleOwnerControlConfirmation(text: string, sourceRef: string |
     const proposal = pending[0]!;
     const args = proposal.args as Record<string, unknown>;
     const said = text.toLocaleLowerCase().normalize('NFKC');
-    const group = typeof args.group === 'string' ? args.group.toLocaleLowerCase().normalize('NFKC') : '';
+    const joinedGroup = (proposal.toolName === 'set_group_policy' || proposal.toolName === 'pause_group')
+      ? getGroupPolicy(proposal.target.split(':')[0]!) : null;
     const matches = proposal.toolName === 'set_group_policy' || proposal.toolName === 'pause_group'
-      ? Boolean(group && said.includes(group))
+      ? Boolean(joinedGroup && mentionsExactGroup(text, joinedGroup.groupId))
       : proposal.toolName === 'set_media_limit'
         ? /\b(?:media|limit)\b/iu.test(said) && said.includes(String(args.megabytes))
         : proposal.toolName === 'set_runtime_setting' || proposal.toolName === 'reset_runtime_setting'
