@@ -144,7 +144,7 @@ const registry: OwnerTool[] = [
       data: reminders }; }),
   tool('create_reminder', 'Create one private reminder. dueAt must be an exact future ISO date-time with timezone; ask for clarification if the owner gives no date or time.', 'reversible',
     z.object({ title: z.string().trim().min(1).max(160), dueAt: z.string().datetime({ offset: true }) }).strict(),
-    ({ title }) => `reminder:${title}`,
+    () => 'new-reminder',
     ({ title, dueAt }) => { const item = createOwnerReminder(title, dueAt, null);
       return { message: `I’ll remind you about ${item.title} at ${item.dueAt}.`, data: { id: item.id, dueAt: item.dueAt } }; }),
   tool('update_reminder', 'Change one upcoming personal reminder by exact ID, with a new title and future ISO date-time with timezone.', 'reversible',

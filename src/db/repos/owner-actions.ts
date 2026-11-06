@@ -24,12 +24,11 @@ interface ProposalRow {
 function nowIso(): string { return new Date().toISOString(); }
 
 function audit(actorJid: string, sourceRef: string | null, operationKey: string | null,
-  toolName: string, target: string, outcome: 'applied' | 'proposed' | 'rejected' | 'failed', result?: unknown): void {
+  toolName: string, target: string, outcome: 'applied' | 'proposed' | 'rejected' | 'failed'): void {
   db.prepare(`INSERT INTO owner_action_audit
-    (actor_jid, source_ref, operation_key, tool_name, target, outcome, result_json, occurred_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
-    actorJid, sourceRef, operationKey, toolName, target, outcome,
-    result === undefined ? null : JSON.stringify(result), nowIso(),
+    (actor_jid, source_ref, operation_key, tool_name, target, outcome, occurred_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    actorJid, sourceRef, operationKey, toolName, target, outcome, nowIso(),
   );
 }
 
@@ -87,17 +86,20 @@ export function proposeOwnerAction(actorJid: string, sourceRef: string | null, t
   return { token, actorJid, toolName, target, args, stateRevision, expiresAt };
 }
 
-export function applyAuditedOwnerAction<T>(actorJid: string, sourceRef: string | null,
-  operationKey: string | null, toolName: string, target: string, execute: () => T): T {
+interface AuditedActionResult { message: string; data?: unknown }
+
+export function applyAuditedOwnerAction(actorJid: string, sourceRef: string | null,
+  operationKey: string | null, toolName: string, target: string,
+  execute: () => AuditedActionResult): AuditedActionResult {
   return db.transaction(() => {
     if (operationKey) {
-      const prior = db.prepare<[string], { result_json: string | null }>(
-        "SELECT result_json FROM owner_action_audit WHERE operation_key = ? AND outcome = 'applied'",
+      const prior = db.prepare<[string], { operation_key: string }>(
+        "SELECT operation_key FROM owner_action_audit WHERE operation_key = ? AND outcome = 'applied'",
       ).get(operationKey);
-      if (prior) return JSON.parse(prior.result_json ?? 'null') as T;
+      if (prior) return { message: 'I already handled that action.' };
     }
     const result = execute();
-    audit(actorJid, sourceRef, operationKey, toolName, target, 'applied', result);
+    audit(actorJid, sourceRef, operationKey, toolName, target, 'applied');
     return result;
   })();
 }
@@ -115,7 +117,7 @@ export function confirmOwnerProposal<T>(actorJid: string, sourceRef: string | nu
       WHERE token = ? AND actor_jid = ? AND consumed_at IS NULL AND expires_at > ?`)
       .run(nowIso(), proposal.token, actorJid, nowIso()).changes;
     if (consumed !== 1) throw new Error('That confirmation expired or was already used.');
-    audit(actorJid, sourceRef, proposal.token, proposal.toolName, proposal.target, 'applied', result);
+    audit(actorJid, sourceRef, proposal.token, proposal.toolName, proposal.target, 'applied');
     return result;
   })();
 }

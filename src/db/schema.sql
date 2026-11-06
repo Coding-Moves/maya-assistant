@@ -57,7 +57,6 @@ CREATE TABLE IF NOT EXISTS owner_action_audit (
   tool_name TEXT NOT NULL,
   target TEXT NOT NULL,
   outcome TEXT NOT NULL CHECK (outcome IN ('applied', 'proposed', 'rejected', 'failed')),
-  result_json TEXT,
   occurred_at TEXT NOT NULL
 );
 
