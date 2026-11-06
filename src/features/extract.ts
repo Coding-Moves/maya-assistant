@@ -2,7 +2,6 @@ import { extractionPrompt } from '../ai/prompts.js';
 import { generateJson } from '../ai/gemini.js';
 import { extractionSchema, type ExtractionResult } from '../ai/schemas.js';
 import { sendToOwner } from '../channels/whatsapp/send.js';
-import { config } from '../config/env.js';
 import { getRuntimeSetting } from '../config/runtime.js';
 import { db } from '../db/client.js';
 import {
