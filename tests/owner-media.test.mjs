@@ -10,7 +10,7 @@ process.env.MEDIA_ENABLED = 'true';
 process.env.MEDIA_MAX_BYTES = '100';
 process.env.DATABASE_PATH = ':memory:';
 
-const { handleOwnerMedia } = await import('../src/features/owner-media.ts');
+const { handleOwnerMedia, extractTimetableWithFallback } = await import('../src/features/owner-media.ts');
 const { mediaDetails } = await import('../src/features/media.ts');
 const { configuredOwnerIdentity, setOwnerIdentity } = await import('../src/channels/whatsapp/identity.ts');
 const { db } = await import('../src/db/client.ts');
@@ -29,8 +29,8 @@ test('voice note transcription reaches the command handler as plain owner text',
   await handleOwnerMedia(message, {}, async (bytes, type) => {
     calls.push([bytes.toString(), type]);
     return 'Done 1.';
-  }, async (text) => { calls.push(text); }, async () => Readable.from([Buffer.from('opus')]));
-  assert.deepEqual(calls, [['opus', 'audio/ogg'], 'Done 1']);
+  }, async (text) => { calls.push(text); }, async () => Readable.from([Buffer.from('OggS')]));
+  assert.deepEqual(calls, [['OggS', 'audio/ogg'], 'Done 1']);
 });
 
 test('a spoken memory request saves through the same verified owner text path', async () => {
@@ -44,7 +44,7 @@ test('a spoken memory request saves through the same verified owner text path', 
         title: 'Study time', body: 'I prefer studying in the morning', date: null,
         target: null, target_id: null, page: null, entry: null, field: null,
         value: null, question: null }));
-  }, async () => Readable.from([Buffer.from('opus')]));
+  }, async () => Readable.from([Buffer.from('OggS')]));
   assert.match(reply, /remember Study time/);
   assert.equal(db.prepare("SELECT source_ref FROM memory_items WHERE title = 'Study time'").get().source_ref, 'voice-memory-1');
 });
@@ -66,12 +66,25 @@ test('owner text attachment reaches questions without a media model request', as
 
 test('an owner timetable image becomes a draft and never activates before confirmation', async () => {
   await handleOwnerMedia({ key: { fromMe: false, id: 'table-1', remoteJid: '123@s.whatsapp.net' },
-    message: { imageMessage: { mimetype: 'image/png', caption: 'save timetable', fileLength: 4 } } }, {},
+    message: { imageMessage: { mimetype: 'image/png', caption: 'save timetable', fileLength: 8 } } }, {},
   async () => { throw new Error('Explicit timetable should not call the description model'); },
   async () => { throw new Error('Timetable should not enter ordinary questions'); },
-  async () => Readable.from([Buffer.from('image')]),
+  async () => Readable.from([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])]),
   async () => ({ is_timetable: true, title: 'Classes', valid_from: null, valid_until: null,
     entries: [{ day_of_week: 2, start_local: '09:00', end_local: '10:00', subject: 'CS101', location: null, teacher: null, uncertainty: null }] }));
   assert.equal(activeTimetables().length, 0);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM timetable_versions WHERE state = 'draft'").get().n, 1);
+});
+
+test('timetable extraction retries invalid structured vision output through a bounded text pass', async () => {
+  const calls = [];
+  const result = await extractTimetableWithFallback(Buffer.from('image'), 'image/jpeg',
+    async () => { calls.push('vision'); throw new SyntaxError('invalid JSON'); },
+    async () => { calls.push('describe'); return 'Monday CS101 at 09:00'; },
+    async (prompt) => { calls.push('structured-text'); assert.match(prompt, /Monday CS101/);
+      return { is_timetable: true, title: 'Classes', valid_from: null, valid_until: null,
+        entries: [{ day_of_week: 1, start_local: '09:00', end_local: null,
+          subject: 'CS101', location: null, teacher: null, uncertainty: 'End time unclear' }] }; });
+  assert.deepEqual(calls, ['vision', 'describe', 'structured-text']);
+  assert.equal(result.entries.length, 1);
 });

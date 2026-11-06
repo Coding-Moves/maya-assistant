@@ -22,6 +22,20 @@ const selfModeGroupTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'ap
 const separateGroupPdfLimit = 2_000_000;
 
 export class MediaTooLargeError extends Error {}
+export class MediaTypeMismatchError extends Error {}
+
+function validateMediaSignature(bytes: Buffer, mimeType: string): void {
+  const matches = mimeType === 'image/jpeg' ? bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+    : mimeType === 'image/png' ? bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      : mimeType === 'image/webp' ? bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP'
+        : mimeType === 'application/pdf' ? bytes.toString('ascii', 0, 4) === '%PDF'
+          : mimeType === 'audio/ogg' ? bytes.toString('ascii', 0, 4) === 'OggS'
+            : mimeType === 'audio/opus' ? bytes.toString('ascii', 0, 4) === 'OggS' ||
+              bytes.toString('ascii', 0, 8) === 'OpusHead'
+            : mimeType === 'video/mp4' || mimeType === 'audio/mp4' ? bytes.toString('ascii', 4, 8) === 'ftyp'
+              : true;
+  if (!matches) throw new MediaTypeMismatchError('Downloaded media does not match its declared type');
+}
 
 export interface MediaDetails {
   mimeType: string;
@@ -116,7 +130,9 @@ export async function readMediaBytes(
     chunks.push(Buffer.from(chunk));
   }
   if (size === 0) throw new Error('Media download was empty');
-  return Buffer.concat(chunks);
+  const bytes = Buffer.concat(chunks);
+  if (config.BOT_MODE === 'separate') validateMediaSignature(bytes, details.mimeType);
+  return bytes;
 }
 
 export async function processPendingMedia(
@@ -153,10 +169,11 @@ export async function processPendingMedia(
       }
       logger.info({ messageId: job.messageId }, 'Group media read');
     } catch (error) {
-      if (error instanceof MediaTooLargeError) {
+      if (error instanceof MediaTooLargeError || error instanceof MediaTypeMismatchError) {
         if (job.caption) completeMediaJob(job.messageId, job.caption);
         else skipMediaJob(job.messageId);
-        logger.warn({ messageId: job.messageId }, 'Group media skipped: streamed size limit exceeded');
+        logger.warn({ messageId: job.messageId }, error instanceof MediaTooLargeError
+          ? 'Group media skipped: streamed size limit exceeded' : 'Group media skipped: file type mismatch');
         continue;
       }
       const quarantined = failMediaJob(job.messageId);
