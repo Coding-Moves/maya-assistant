@@ -1,4 +1,5 @@
 import { db } from '../client.js';
+import { config } from '../../config/env.js';
 
 export interface MediaJob {
   messageId: number;
@@ -22,7 +23,11 @@ export function pendingMediaJobs(limit: number): MediaJob[] {
   if (!Number.isSafeInteger(limit) || limit <= 0) throw new RangeError('Invalid media batch size');
   return db.prepare<[number], MediaJob>(
     `SELECT message_id AS messageId, payload, mime_type AS mimeType, caption, attempts
-     FROM media_jobs ORDER BY message_id LIMIT ?`,
+     FROM media_jobs JOIN messages m ON m.id = media_jobs.message_id
+     WHERE ${config.BOT_MODE === 'separate' ? `m.chat_id IN (SELECT id FROM groups WHERE active = 1)
+       AND NOT EXISTS (SELECT 1 FROM group_policies p WHERE p.group_id = m.chat_id
+         AND (p.ingest_enabled = 0 OR p.media_enabled = 0 OR p.paused_until > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))` : '1 = 1'}
+     ORDER BY message_id LIMIT ?`,
   ).all(limit);
 }
 

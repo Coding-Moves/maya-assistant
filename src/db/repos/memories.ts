@@ -196,6 +196,34 @@ export function clearMemoryIds(ids: readonly number[], now = new Date()): number
   })();
 }
 
+function isExpiredTemporary(item: Memory, now: Date): boolean {
+  const anchors = [item.dueAt, item.expiresAt, item.completedAt].filter((value): value is string => value !== null);
+  if (anchors.length === 0) return false;
+  const last = Math.max(...anchors.map((value) => Date.parse(value)));
+  return last + graceMs <= now.getTime() && (item.status === 'completed' || item.status === 'archived' ||
+    (item.dueAt !== null && item.dueAt <= now.toISOString()) ||
+    (item.expiresAt !== null && item.expiresAt <= now.toISOString()));
+}
+
+export function expiredTemporaryMemories(now = new Date(), limit = 101): Memory[] {
+  const scan = db.prepare<[number], { id: number }>(
+    "SELECT id FROM memory_items WHERE lifecycle = 'temporary' AND id > ? ORDER BY id LIMIT 500",
+  );
+  const result: Memory[] = [];
+  let cursor = 0;
+  for (;;) {
+    const page = scan.all(cursor);
+    if (!page.length) break;
+    for (const { id } of page) {
+      cursor = id;
+      const item = getMemory(id)!;
+      if (isExpiredTemporary(item, now)) result.push(item);
+      if (result.length >= limit) return result;
+    }
+  }
+  return result;
+}
+
 export function cleanupMemories(now = new Date()): { reviewed: number; deleted: number } {
   const at = now.toISOString();
   return db.transaction(() => {
@@ -219,11 +247,7 @@ export function cleanupMemories(now = new Date()): { reviewed: number; deleted: 
       for (const { id } of page) {
         cursor = id;
         const item = getMemory(id)!;
-        const anchors = [item.dueAt, item.expiresAt, item.completedAt].filter((value): value is string => value !== null);
-        if (anchors.length === 0) continue;
-        const last = Math.max(...anchors.map((value) => Date.parse(value)));
-        if (last + graceMs <= now.getTime() && (item.status === 'completed' || item.status === 'archived' ||
-          (item.dueAt !== null && item.dueAt <= at) || (item.expiresAt !== null && item.expiresAt <= at))) {
+        if (isExpiredTemporary(item, now)) {
           if (deleteMemory(item.id, now)) deleted += 1;
         }
       }

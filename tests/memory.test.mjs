@@ -113,8 +113,8 @@ test('online backup contains memory and FTS content and restores cleanly', async
 
 test('future schema version fails closed without modifying existing records', () => {
   const before = listMemories({ category: 'preference' }).length;
-  db.pragma('user_version = 2');
+  db.pragma('user_version = 3');
   assert.throws(() => migrate(), /newer than this Maya build/);
-  db.pragma('user_version = 1');
+  db.pragma('user_version = 2');
   assert.equal(listMemories({ category: 'preference' }).length, before);
 });

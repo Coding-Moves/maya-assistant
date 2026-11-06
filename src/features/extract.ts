@@ -2,7 +2,7 @@ import { extractionPrompt } from '../ai/prompts.js';
 import { generateJson } from '../ai/gemini.js';
 import { extractionSchema, type ExtractionResult } from '../ai/schemas.js';
 import { sendToOwner } from '../channels/whatsapp/send.js';
-import { config } from '../config/env.js';
+import { getRuntimeSetting } from '../config/runtime.js';
 import { db } from '../db/client.js';
 import {
   getUnprocessed,
@@ -100,7 +100,7 @@ export async function extractOnce(
     generateJson(prompt, extractionSchema),
   send: NotifyOwner = sendToOwner,
 ): Promise<void> {
-  const messages = getUnprocessed(config.EXTRACT_BATCH_SIZE);
+  const messages = getUnprocessed(getRuntimeSetting('EXTRACT_BATCH_SIZE') as number);
   if (messages.length > 0) {
     try {
       const tasks = openTasks();

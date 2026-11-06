@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 process.env.GEMINI_API_KEY = 'test';
+process.env.BOT_MODE = 'separate';
+process.env.OWNER_JID = '123@s.whatsapp.net';
 process.env.DATABASE_PATH = ':memory:';
 process.env.VU_LMS_SYNC = 'true';
 process.env.VU_STUDENT_ID = 'test-student';
@@ -27,7 +29,7 @@ test('daily VU check uses the timezone, does not overlap, and stops cleanly', as
     clear: () => undefined,
   });
   const vu = registrations.find(({ options }) => options.name === 'maya-vu-classic-todo');
-  assert.equal(registrations.length, 5);
+  assert.equal(registrations.length, 6);
   assert.equal(vu.expression, '0 6 * * *');
   assert.equal(vu.options.timezone, 'Asia/Karachi');
   assert.equal(vu.options.noOverlap, true);

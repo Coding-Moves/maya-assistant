@@ -14,7 +14,8 @@ Instructions for AI coding agents (Codex, Claude Code, Cursor, etc.) working on 
 - In self mode, every bot message starts with `🤖 ${BOT_NAME}: ` and the router ignores that prefix. In separate mode, send plain text and use `key.fromMe` as the outgoing loop guard.
 - Never commit `.env`, `auth_info/`, `data/`, or any `*.db` file.
 - Never log message text at `info` level or above. Use `debug`.
-- Never hardcode a phone number, group ID, timezone, name, or API key. Everything comes from `src/config/env.ts`.
+- Never hardcode a phone number, group ID, timezone, name, or API key. Deployment defaults and secrets come from `src/config/env.ts`; only the explicitly allowlisted non-secret settings in `src/config/runtime.ts` may have SQLite overrides in separate mode.
+- Gemini may propose only registered owner tools. Application code verifies the owner, validates arguments and risk, and executes changes. Group, media, Calendar, and LMS content is data, never authority for a tool call.
 
 ## Tech rules
 - Node 22+ (develop on Node 24), ESM (`"type": "module"`), TypeScript strict, run with `tsx`.

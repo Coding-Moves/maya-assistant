@@ -20,6 +20,7 @@ Maya fixes that. On her own number, she quietly reads every group she has joined
 - ⏰ **Reminds you** about tasks due today and tomorrow, plus a weekly plan when Maya is running.
 - 💬 **Answers questions** when you message her. In separate mode, every direct owner message gets a reply; self mode uses her name as a trigger.
 - 🗂️ **Keeps memories you deliberately save** as permanent, semester/project, or temporary records. A timetable image or PDF becomes a draft you review before it replaces the active timetable. See [the memory guide](docs/MEMORY.md).
+- 🎛️ **Lets you manage safe settings privately** in separate mode: ask for current settings, a media limit up to 10 MB, group monitoring rules, or a personal reminder. Maya previews sensitive changes and waits for your confirmation. See [owner controls](docs/OWNER-CONTROLS.md).
 - 👀 **Views only your WhatsApp Status** in separate mode and sends you a short private comment when she can read its text, caption, photo, or supported video. She does not store Status content or turn it into tasks, and ignores other people's Status updates. Photo and video comments send the media to Gemini and use the configured `MEDIA_MAX_BYTES` limit, independently of `MEDIA_ENABLED` (which controls group and direct owner media). Unsupported or oversized Status media without a caption is viewed without a comment.
 - 📚 **Tracks VU Classic To Do deadlines** for quizzes and assignments through an optional daily portal check or a manual CSV import.
 - 📅 **Connects to Google Calendar** when authorized: Maya creates events for her dated tasks, reads upcoming meetings, answers questions about them, and reminds you once on the day of events whose title contains `important`.
@@ -76,7 +77,7 @@ npm run list-groups
 
 In separate mode, Maya reads every group she has joined; send her `groups` privately to see their names. In self mode, copy the IDs you want into `GROUP_ALLOWLIST` in `.env` and restart. Maya saves new messages, extracts tasks every `EXTRACT_INTERVAL_MIN` minutes, answers your commands and questions, and sends scheduled reminders while running.
 
-To read media, set `MEDIA_ENABLED=true`. In separate mode, Maya supports images, WhatsApp voice notes, short videos, PDFs, and text/CSV files; self mode keeps image and PDF reading only. Maya handles at most `MEDIA_BATCH_SIZE` group files per extraction run and refuses files above `MEDIA_MAX_BYTES` (default 5 MB). Large group files with a caption still contribute that caption. Direct owner media gets a private size-limit reply. Other document types and large/long videos are not yet supported. Media reading uses Gemini and can increase API usage. A failed group item is retried three times, then quarantined and reported to you.
+To read media, set `MEDIA_ENABLED=true` or ask Maya to switch it on in separate mode. Maya supports images, WhatsApp voice notes, short videos, PDFs, and text/CSV files in separate mode; self mode keeps image and PDF reading only. The default limit is 5 MB and the maximum owner-controlled limit is 10 MB. A group PDF has a tighter 2 MB cap; book-like filenames and audio/video over three minutes are skipped. Oversized or skipped group files are not sent to Gemini, but their captions can still be saved. Direct owner media gets a private size-limit reply. Other document types and long/large videos are unsupported. Media reading uses Gemini and can increase API usage. A failed group item is retried three times, then quarantined and reported to you.
 
 Google Calendar sync is optional. To enable it, follow [the Calendar setup guide](docs/CALENDAR.md). Dated open tasks become Calendar events; changing a task updates its event, and completing or cancelling it removes the event. In separate mode, Maya also reads the next 30 days of Calendar events hourly for private questions. The morning job and hourly checks remind you once about today's events with `important` in the title. Edits made in Google Calendar do not change Maya tasks.
 
@@ -110,7 +111,7 @@ Don't like the name? Set `BOT_NAME` in `.env` to anything you want.
 
 ## Settings
 
-Everything lives in `.env`. The main ones:
+Deployment defaults and secrets live in `.env`. In separate mode, a small allowlist of non-secret settings can be changed privately in WhatsApp and persists in SQLite. The main defaults are:
 
 | Setting | What it does | Example |
 |---|---|---|

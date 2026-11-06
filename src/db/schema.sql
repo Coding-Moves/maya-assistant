@@ -19,6 +19,69 @@ CREATE TABLE IF NOT EXISTS groups (
   active INTEGER NOT NULL DEFAULT 1
 );
 
+-- Owner controls are deliberately separate from deployment secrets.
+CREATE TABLE IF NOT EXISTS runtime_settings (
+  key TEXT PRIMARY KEY CHECK (key IN ('MEDIA_ENABLED', 'MEDIA_MAX_BYTES', 'MEDIA_BATCH_SIZE', 'EXTRACT_BATCH_SIZE')),
+  value_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS group_policies (
+  group_id TEXT PRIMARY KEY REFERENCES groups(id) ON DELETE CASCADE,
+  ingest_enabled INTEGER NOT NULL DEFAULT 1 CHECK (ingest_enabled IN (0, 1)),
+  media_enabled INTEGER NOT NULL DEFAULT 1 CHECK (media_enabled IN (0, 1)),
+  extraction_enabled INTEGER NOT NULL DEFAULT 1 CHECK (extraction_enabled IN (0, 1)),
+  retrieval_enabled INTEGER NOT NULL DEFAULT 1 CHECK (retrieval_enabled IN (0, 1)),
+  paused_until TEXT,
+  revision INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS owner_action_confirmations (
+  token TEXT PRIMARY KEY,
+  actor_jid TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  target TEXT NOT NULL,
+  arguments_json TEXT NOT NULL,
+  state_revision TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_owner_action_confirmations_actor ON owner_action_confirmations(actor_jid, expires_at);
+
+CREATE TABLE IF NOT EXISTS owner_action_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor_jid TEXT NOT NULL,
+  source_ref TEXT,
+  operation_key TEXT UNIQUE,
+  tool_name TEXT NOT NULL,
+  target TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('applied', 'proposed', 'rejected', 'failed')),
+  occurred_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS owner_agent_requests (
+  actor_jid TEXT NOT NULL,
+  source_ref TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('claimed', 'completed')),
+  reply TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (actor_jid, source_ref)
+);
+
+CREATE TABLE IF NOT EXISTS owner_reminders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  due_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'cancelled')),
+  sent_at TEXT,
+  source_ref TEXT,
+  revision INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_owner_reminders_due ON owner_reminders(status, sent_at, due_at);
+
 CREATE TABLE IF NOT EXISTS extraction_failures (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   failed_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),

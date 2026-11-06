@@ -3,6 +3,7 @@ import { generateMediaJson, understandOwnerMedia } from '../ai/gemini.js';
 import { sendToOwner, withOwnerTyping } from '../channels/whatsapp/send.js';
 import { getOwnerChatJid, isOwnerChat } from '../channels/whatsapp/identity.js';
 import { config } from '../config/env.js';
+import { getRuntimeSetting } from '../config/runtime.js';
 import { logger } from '../utils/logger.js';
 import { handleOwnerText } from './commands.js';
 import { MediaTooLargeError, download, mediaDetails, readMediaBytes, type DownloadMedia } from './media.js';
@@ -28,7 +29,7 @@ export async function handleOwnerMedia(
 ): Promise<void> {
   if (config.BOT_MODE !== 'separate' || message.key.fromMe !== false ||
       !isOwnerChat(message.key.remoteJid, message.key.remoteJidAlt)) return;
-  if (!config.MEDIA_ENABLED) {
+  if (!getRuntimeSetting('MEDIA_ENABLED')) {
     await sendToOwner('I can see you sent a file, but media reading is switched off for me right now.');
     return;
   }
@@ -71,12 +72,14 @@ export async function handleOwnerMedia(
     const input = details.kind === 'audio'
       ? description.replace(/[.!?؟۔]+$/u, '').trim()
       : `${details.caption ? `${details.caption}\n\n` : 'What is in this media?\n\n'}Media content: ${description}`;
-    await handleText(input, undefined, undefined, undefined, message.key.id ?? null);
+    await handleText(input, undefined, undefined, undefined, message.key.id ?? null,
+      details.kind === 'audio' ? 'owner_voice' : 'media_description',
+      { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt });
   } catch (error) {
     logger.warn({ messageId: message.key.id, errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not read owner media');
     logger.debug({ err: error }, 'Owner media failure details');
     await sendToOwner(error instanceof MediaTooLargeError
-      ? `That file is too large for me to read right now. Please send one under ${Math.floor(config.MEDIA_MAX_BYTES / 1_000_000)} MB or tell me what to look for.`
+      ? `That file is too large for me to read right now. Please send one under ${Math.floor((getRuntimeSetting('MEDIA_MAX_BYTES') as number) / 1_000_000)} MB or tell me what to look for.`
       : 'I had trouble reading that file. Could you try sending it again?');
   }
 }

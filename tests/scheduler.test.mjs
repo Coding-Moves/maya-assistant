@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 process.env.GEMINI_API_KEY = 'test';
+process.env.BOT_MODE = 'separate';
+process.env.OWNER_JID = '123@s.whatsapp.net';
 process.env.EXTRACT_INTERVAL_MIN = '7';
 process.env.TIMEZONE = 'Asia/Karachi';
 
@@ -41,7 +43,7 @@ test('scheduler applies timezone to every cron job and prevents overlapping extr
     },
   });
 
-  assert.equal(registrations.length, 4);
+  assert.equal(registrations.length, 5);
   for (const { options } of registrations) {
     assert.equal(options.timezone, 'Asia/Karachi');
     assert.equal(options.noOverlap, true);
@@ -60,7 +62,7 @@ test('scheduler applies timezone to every cron job and prevents overlapping extr
   finishExtraction();
   await stop();
   assert.equal(clearCount, 1);
-  assert.equal(stopCount, 4);
+  assert.equal(stopCount, 5);
 });
 
 test('shutdown waits for active extraction and rejects new ticks', async () => {

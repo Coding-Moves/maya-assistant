@@ -1,15 +1,20 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import { Readable } from 'node:stream';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 
 process.env.GEMINI_API_KEY = 'test';
 process.env.BOT_MODE = 'separate';
 process.env.OWNER_JID = '123@s.whatsapp.net';
 process.env.MEDIA_MAX_BYTES = '5';
+process.env.DATABASE_PATH = ':memory:';
 
+const { db } = await import('../src/db/client.ts');
+const { migrate } = await import('../src/db/migrate.ts');
 const { configuredOwnerIdentity, clearOwnerIdentity, setOwnerIdentity } = await import('../src/channels/whatsapp/identity.ts');
 const { commentOnOwnerStatus, ownerStatusPrompt } = await import('../src/features/status.ts');
+migrate();
+after(() => db.close());
 
 const ownerStatus = (id, message) => ({
   key: { id, remoteJid: 'status@broadcast', participant: '123@s.whatsapp.net', fromMe: false },

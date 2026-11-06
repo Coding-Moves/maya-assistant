@@ -1,6 +1,7 @@
 import { generateText } from '../ai/gemini.js';
 import { sendToOwner, withOwnerTyping } from '../channels/whatsapp/send.js';
 import { config } from '../config/env.js';
+import { getRuntimeSetting } from '../config/runtime.js';
 import { joinedGroups } from '../db/repos/groups.js';
 import { recentJoinedGroupMessages, recentMessages } from '../db/repos/messages.js';
 import { lastCalendarReadAt, upcomingCalendarEvents } from './calendar-read.js';
@@ -69,7 +70,7 @@ export function askPrompt(question: string, now = new Date()): string {
     ? recentJoinedGroupMessages(matchingGroupIds, config.ASK_CONTEXT_MESSAGES)
     : recentMessages(config.GROUP_ALLOWLIST, config.ASK_CONTEXT_MESSAGES);
   const calendarLastRead = config.BOT_MODE === 'separate' && config.CALENDAR_SYNC ? lastCalendarReadAt() : null;
-  const mediaCapability = !config.MEDIA_ENABLED
+  const mediaCapability = !getRuntimeSetting('MEDIA_ENABLED')
     ? 'You read media captions only unless media reading is enabled.'
     : config.BOT_MODE === 'separate'
       ? 'You can read supported images, audio, short video, and PDFs up to the configured size limit.'

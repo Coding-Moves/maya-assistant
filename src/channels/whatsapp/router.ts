@@ -88,7 +88,8 @@ export function attachWhatsAppRouter(
     const reply = (hasMedia
       ? handleOwnerMedia(message, sock)
       : input
-        ? handleOwnerText(input, undefined, undefined, undefined, message.key.id ?? null)
+        ? handleOwnerText(input, undefined, undefined, undefined, message.key.id ?? null,
+          'owner_text', { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt })
         : Promise.resolve()
     ).catch((error: unknown) => {
       logger.error(
