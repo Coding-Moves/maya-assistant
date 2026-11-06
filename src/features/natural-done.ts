@@ -1,6 +1,6 @@
 import { config } from '../config/env.js';
 import { db } from '../db/client.js';
-import { markDone, openTasks, type Task } from '../db/repos/tasks.js';
+import { markDone, openTasks, recentExpiredTasks, type Task } from '../db/repos/tasks.js';
 import { formatTaskDue } from '../utils/time.js';
 
 const discussionMs = 10 * 60 * 1000;
@@ -82,7 +82,7 @@ function saveChoice(tasks: Task[], language: Language, now: number): void {
 }
 
 export function noteDiscussedTask(answer: string): void {
-  const tasks = openTasks();
+  const tasks = [...openTasks(), ...recentExpiredTasks()];
   const said = ` ${normalize(answer)} `;
   const matches = tasks.filter((task) => said.includes(` ${normalize(task.title)} `) &&
     (!task.subject || said.includes(` ${normalize(task.subject)} `)));
@@ -96,7 +96,7 @@ export function clearCompletionContext(): void {
 
 export function handleNaturalDone(text: string): string | null {
   if (/^(?:help|\?|task|tasks|list)$/iu.test(text.trim()) || /^debug(?:\s|$)/iu.test(text.trim())) return null;
-  const tasks = openTasks();
+  const tasks = [...openTasks(), ...recentExpiredTasks()];
   const now = Date.now();
   const completion = completionSubject(text);
   const pending = config.OWNER_JID ? pendingChoice(now) : null;
@@ -107,10 +107,10 @@ export function handleNaturalDone(text: string): string | null {
     const subject = completion.subject;
     matches = namedMatches(subject, tasks);
     if (matches.length === 0 && (!subject || ['it', 'this', 'that', 'one', 'ye', 'wo', 'یہ', 'وہ'].includes(normalize(subject)))) {
-      if (tasks.length === 1) matches = tasks;
-      else if (discussed && now - discussed.at < discussionMs)
+      const open = tasks.filter((task) => task.status === 'open');
+      if (discussed && now - discussed.at < discussionMs)
         matches = tasks.filter((task) => task.id === discussed!.id);
-      else matches = tasks;
+      else matches = open.length ? open : tasks;
     }
   } else {
     if (/[?؟]/u.test(text)) return null;

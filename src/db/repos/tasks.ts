@@ -150,10 +150,16 @@ export function markDone(id: number): boolean {
       .prepare(
         `UPDATE tasks SET status = 'done',
          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-         WHERE id = ? AND status = 'open'`,
+         WHERE id = ? AND status ${config.BOT_MODE === 'separate' ? "IN ('open', 'expired')" : "= 'open'"}`,
       )
       .run(checkedId(id)).changes === 1
   );
+}
+
+export function completableTask(id: number): Task | undefined {
+  return db.prepare<[number], Task>(`SELECT ${taskColumns} FROM tasks
+    WHERE id = ? AND status ${config.BOT_MODE === 'separate' ? "IN ('open', 'expired')" : "= 'open'"}`)
+    .get(checkedId(id));
 }
 
 // A missed deadline is not evidence that the owner completed the work.

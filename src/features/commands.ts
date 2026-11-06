@@ -1,7 +1,7 @@
 import { sendToOwner } from '../channels/whatsapp/send.js';
 import { config } from '../config/env.js';
 import { joinedGroups } from '../db/repos/groups.js';
-import { markDone, openTasks } from '../db/repos/tasks.js';
+import { completableTask, markDone, openTasks } from '../db/repos/tasks.js';
 import { runJob } from '../scheduler/jobs.js';
 import { formatTaskDue } from '../utils/time.js';
 import { ask } from './ask.js';
@@ -98,7 +98,8 @@ export async function handleOwnerText(
     );
     return;
   }
-  if (/^(?:done|complete)(?:\s|$)/i.test(input)) {
+  if (/^(?:done|complete)(?:\s|$)/i.test(input) &&
+      (config.BOT_MODE === 'self' || /^(?:done|complete)\s+[1-9]\d*$/i.test(input))) {
     const match = /^(?:done|complete)\s+([1-9]\d*)$/i.exec(input);
     const id = match ? Number(match[1]) : NaN;
     if (!Number.isSafeInteger(id)) {
@@ -107,12 +108,12 @@ export async function handleOwnerText(
         : 'Use: done <task ID> or complete <task ID>.');
       return;
     }
-    const task = openTasks().find((item) => item.id === id);
-    const done = markDone(id);
+    const task = Number.isSafeInteger(id) ? completableTask(id) : undefined;
+    const done = task ? markDone(id) : false;
     await send(config.BOT_MODE === 'separate'
       ? done && task
-        ? `Done! I've ticked off ${task.title} for you 🌿`
-        : `I couldn't find an open task with number ${id}. Send tasks and I'll show you what's open.`
+        ? `Done! I've ticked off ${task.subject ? `${task.subject} — ` : ''}${task.title} for you 🌿`
+        : `I couldn't find an unfinished task with number ${id}. Send tasks and I'll show you what's open.`
       : done ? `Task #${id} marked done.` : `Open task #${id} was not found.`);
     return;
   }
