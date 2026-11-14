@@ -44,12 +44,13 @@ Only do this after the HTTPS URLs above work publicly.
 1. Open the **Maya Assistant** Google Cloud project → **Google Auth Platform** → **Branding**.
 2. Set the app name to `Maya Assistant`.
 3. Set the user support email and developer contact email to an address the project owner actively monitors.
-4. Set the application home page to `https://maya.codingmoves.com/`.
-5. Set the privacy policy link to `https://maya.codingmoves.com/privacy/`.
-6. The terms link can be `https://maya.codingmoves.com/terms/`. A logo is optional; leave it blank unless you want to maintain it.
-7. Save Branding, then open **Audience** and choose **Publish app** / **In production**. Read and accept Google's confirmation carefully.
+4. Under **Authorised domains**, add `codingmoves.com` — the registrable parent domain, not `maya.codingmoves.com`. If Google requests it, verify ownership of `codingmoves.com` in [Google Search Console](https://search.google.com/search-console/) with a Google account that is an owner or editor of this Cloud project.
+5. Set the application home page to `https://maya.codingmoves.com/`.
+6. Set the privacy policy link to `https://maya.codingmoves.com/privacy/`.
+7. The terms link can be `https://maya.codingmoves.com/terms/`. A logo is optional; leave it blank unless you want to maintain it.
+8. Save Branding, then open **Audience** and choose **Publish app** / **In production**. Read and accept Google's confirmation carefully.
 
-The Calendar scope can still show an "unverified app" warning, particularly for accounts outside the project's test users. For this personal single-owner integration, do not add unrelated people as test users and do not claim Google verification has been completed unless Google confirms it.
+The Calendar scope can still require Google brand or scope verification before the app is broadly trusted by accounts outside the project. For this personal single-owner integration, do not add unrelated people as test users and do not claim Google verification has been completed unless Google confirms it. Google requires a public homepage, linked privacy policy, and verified authorized domain for production branding; its [verification guidance](https://developers.google.com/identity/verification/authentication-verification) explains the requirements.
 
 ## 4. Re-authorize the owner Calendar
 
