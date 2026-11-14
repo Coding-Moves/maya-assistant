@@ -12,6 +12,7 @@ import { getOwnerChatJid } from '../channels/whatsapp/identity.js';
 import { handleOwnerControlConfirmation, runOwnerAgent, type OwnerMessageIdentity } from './owner-agent.js';
 import { isOwnerControlRequest } from './owner-tools.js';
 import { handleOwnerTaskUpdateConfirmation, stageOwnerTaskUpdate } from './owner-task-updates.js';
+import { pendingOwnerProposals } from '../db/repos/owner-actions.js';
 
 export async function handleOwnerText(
   text: string,
@@ -47,7 +48,7 @@ export async function handleOwnerText(
 
   if (config.BOT_MODE === 'separate') {
     const actor = getOwnerChatJid();
-    if (actor) {
+    if (actor && pendingOwnerProposals(actor).length === 0) {
       const taskUpdateConfirmation = handleOwnerTaskUpdateConfirmation(input, actor);
       if (taskUpdateConfirmation !== null) {
         await send(taskUpdateConfirmation);
