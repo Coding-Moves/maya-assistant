@@ -16,14 +16,23 @@ function sqliteFootprintBytes(path: string): number {
 }
 
 async function main(): Promise<void> {
-  const { db } = await import('../src/db/client.js');
-  const { migrate } = await import('../src/db/migrate.js');
-  const { rememberGroup } = await import('../src/db/repos/groups.js');
-  const { insertMessage } = await import('../src/db/repos/messages.js');
-  const { createTask } = await import('../src/db/repos/tasks.js');
-  const { separateContext } = await import('../src/features/context.js');
+  let closeDatabase: (() => void) | undefined;
+  let peakRss = process.memoryUsage().rss;
+  const observeMemory = (): void => {
+    peakRss = Math.max(peakRss, process.memoryUsage().rss);
+  };
   try {
+    const { db } = await import('../src/db/client.js');
+    closeDatabase = (): void => {
+      db.close();
+    };
+    const { migrate } = await import('../src/db/migrate.js');
+    const { rememberGroup } = await import('../src/db/repos/groups.js');
+    const { insertMessage } = await import('../src/db/repos/messages.js');
+    const { createTask } = await import('../src/db/repos/tasks.js');
+    const { separateContext } = await import('../src/features/context.js');
     migrate();
+    observeMemory();
     for (let group = 0; group < 8; group += 1) {
       const id = `eval-${group}@g.us`;
       rememberGroup(id, `Evaluation course ${group}`);
@@ -31,16 +40,18 @@ async function main(): Promise<void> {
         insertMessage({ externalId: `${group}-${message}`, chatId: id, sentAt: '2026-11-14T10:00:00.000Z',
           text: message % 75 === 0 ? `CS${group} exam deadline moved to Hall ${message}.` : `Routine class discussion ${group}-${message}.` });
       }
+      observeMemory();
     }
-    for (let task = 0; task < 160; task += 1)
+    for (let task = 0; task < 160; task += 1) {
       createTask({ type: 'quiz', subject: `CS${task % 8}`, title: `Evaluation quiz ${task}`, dueAt: '2027-02-01T09:00:00.000Z' });
+      if (task % 20 === 19) observeMemory();
+    }
 
-    let peakRss = process.memoryUsage().rss;
     let largestContextBytes = 0;
     for (let i = 0; i < 100; i += 1) {
       const context = separateContext(`Where is the CS${i % 8} exam deadline?`);
       largestContextBytes = Math.max(largestContextBytes, Buffer.byteLength(context));
-      peakRss = Math.max(peakRss, process.memoryUsage().rss);
+      observeMemory();
     }
     db.pragma('wal_checkpoint(TRUNCATE)');
     const databaseBytes = sqliteFootprintBytes(databasePath);
@@ -53,7 +64,7 @@ async function main(): Promise<void> {
     if (largestContextBytes > 16_000 || peakRss > 550_000_000) throw new Error('Phase 3 resource guard exceeded');
     console.log(JSON.stringify(result));
   } finally {
-    db.close();
+    closeDatabase?.();
     rmSync(workspace, { recursive: true, force: true });
   }
 }
