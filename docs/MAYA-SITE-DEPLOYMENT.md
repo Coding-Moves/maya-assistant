@@ -1,16 +1,16 @@
 # Maya public site and Google OAuth publishing
 
-This guide deploys the small public site in [`site/`](../site/) to `maya.codingmoves.com`. The site is deliberately static: it has no forms, login, analytics, database, WhatsApp session, Calendar token, API key, or LMS credential. It is a Coding Moves Lab project page, with prominent links to the official [Maya Lab page](https://codingmoves.com/lab/maya/) and [Lab contact form](https://codingmoves.com/lab/contact/). This avoids collecting the same visitor message in two places: contact submissions stay on the official Coding Moves site, where Netlify Forms handles them.
+This is the practical guide for putting Maya's small public site at `maya.codingmoves.com`. The site is only for explaining Maya and giving Google the pages it needs. It has no login, forms, analytics, database, WhatsApp session, Calendar token, API key, or LMS password. Maya points people back to the official [Maya Lab page](https://codingmoves.com/lab/maya/) and [Lab contact form](https://codingmoves.com/lab/contact/), so messages stay in one place instead of being collected twice.
 
 ## What this fixes
 
-Maya's Google Calendar OAuth client uses the desktop authorization flow, but Google still asks an external app for valid branding information before its publishing status can be changed from **Testing** to **In production**. While it is in Testing, Calendar refresh tokens expire after seven days. The public site supplies these URLs:
+Maya's Calendar connection is a desktop flow, but Google still wants to know who is behind the app before it can move from **Testing** to **In production**. In Testing, Calendar refresh tokens expire after seven days. This small site gives Google the pages it asks for:
 
 - Home: `https://maya.codingmoves.com/`
 - Privacy policy: `https://maya.codingmoves.com/privacy/`
 - Terms: `https://maya.codingmoves.com/terms/`
 
-Publishing an OAuth app does not make Maya public, does not expose its credentials, and does not give anyone else access to the owner's Calendar. The desktop OAuth client and its localhost callback remain unchanged.
+Publishing the OAuth app does not make Maya public. It does not expose credentials or give anyone else access to the owner's Calendar. The desktop client and localhost callback stay exactly as they are.
 
 ## 1. Deploy the site with Netlify
 
@@ -22,7 +22,7 @@ After the PR containing this guide is merged:
 4. Deploy. Before adding the custom domain, open the generated `*.netlify.app` URL and verify the home page, `/privacy/`, and `/terms/` load.
 5. In the Netlify site configuration, add the custom domain `maya.codingmoves.com`. Netlify will show the exact DNS target it expects.
 
-Do not connect Netlify to `.env`, the Oracle VM, or the production database. This deploy needs only the public Git repository contents.
+Do not give Netlify your `.env`, Oracle VM, or production database. This deploy needs only the public files already in the Git repository.
 
 ## 2. Point Cloudflare DNS at Netlify
 
@@ -50,7 +50,7 @@ Only do this after the HTTPS URLs above work publicly.
 7. The terms link can be `https://maya.codingmoves.com/terms/`. A logo is optional; leave it blank unless you want to maintain it.
 8. Save Branding, then open **Audience** and choose **Publish app** / **In production**. Read and accept Google's confirmation carefully.
 
-The Calendar scope can still require Google brand or scope verification before the app is broadly trusted by accounts outside the project. For this personal single-owner integration, do not add unrelated people as test users and do not claim Google verification has been completed unless Google confirms it. Google requires a public homepage, linked privacy policy, and verified authorized domain for production branding; its [verification guidance](https://developers.google.com/identity/verification/authentication-verification) explains the requirements.
+Google can still ask for brand or scope verification before the app is broadly trusted outside this project. For this personal one-owner setup, do not add people you do not need as test users and do not say the app is verified unless Google confirms it. Google expects a public homepage, a linked privacy policy, and a verified domain; its [verification guide](https://developers.google.com/identity/verification/authentication-verification) explains the details.
 
 ## 4. Re-authorize the owner Calendar
 
