@@ -43,6 +43,8 @@ footer {
 }
 
 .brand span { color: var(--leaf); font-size: 1rem; margin-left: .22rem; }
+.brand-family { color: var(--muted); display: block; font-size: .7rem; font-weight: 700; letter-spacing: .02em; margin-top: -.2rem; text-decoration: none; }
+.brand-family:hover { color: var(--leaf-dark); text-decoration: underline; }
 
 nav { display: flex; gap: 1.5rem; }
 nav a, footer a { color: var(--muted); font-size: .93rem; text-decoration: none; }

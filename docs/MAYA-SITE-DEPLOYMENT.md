@@ -1,6 +1,6 @@
 # Maya public site and Google OAuth publishing
 
-This guide deploys the small public site in [`site/`](../site/) to `maya.codingmoves.com`. The site is deliberately static: it has no forms, login, analytics, database, WhatsApp session, Calendar token, API key, or LMS credential. Its purpose is to give Maya a real homepage and transparent privacy/terms pages for Google OAuth, without turning the bot into a public service.
+This guide deploys the small public site in [`site/`](../site/) to `maya.codingmoves.com`. The site is deliberately static: it has no forms, login, analytics, database, WhatsApp session, Calendar token, API key, or LMS credential. It is a Coding Moves Lab project page, with prominent links to the official [Maya Lab page](https://codingmoves.com/lab/maya/) and [Lab contact form](https://codingmoves.com/lab/contact/). This avoids collecting the same visitor message in two places: contact submissions stay on the official Coding Moves site, where Netlify Forms handles them.
 
 ## What this fixes
 
