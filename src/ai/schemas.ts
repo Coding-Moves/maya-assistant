@@ -45,6 +45,25 @@ export const extractionSchema = z.object({
 
 export type ExtractionResult = z.infer<typeof extractionSchema>;
 
+const ownerTaskFields = z.object({
+  subject: z.string().max(80).nullable(),
+  type: taskType,
+  title: z.string().trim().min(1).max(180),
+  details: z.string().max(1_000).nullable(),
+  due_at: z.string().datetime({ offset: true }).nullable(),
+});
+
+export const ownerTaskUpdateSchema = z.object({
+  actions: z.array(z.discriminatedUnion('op', [
+    ownerTaskFields.extend({ op: z.literal('create') }),
+    z.object({ op: z.literal('update'), subject: z.string().max(80).nullable().optional(), type: taskType.optional(),
+      title: z.string().trim().min(1).max(180), details: z.string().max(1_000).nullable().optional(),
+      due_at: z.string().datetime({ offset: true }).nullable().optional() }),
+    z.object({ op: z.literal('cancel'), subject: z.string().max(80).nullable(), title: z.string().trim().min(1).max(180), reason: z.string().max(300).nullable() }),
+  ])).max(12),
+});
+export type OwnerTaskUpdate = z.infer<typeof ownerTaskUpdateSchema>;
+
 // A narrow owner-memory intent. Application code resolves targets and authorizes all writes.
 export const memoryIntentSchema = z.object({
   action: z.enum(['none', 'clarify', 'save', 'show', 'list', 'search', 'update', 'replace',

@@ -8,7 +8,7 @@ import { handleOwnerText } from '../../features/commands.js';
 import { commentOnOwnerStatus } from '../../features/status.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat, verifyOwnerLid } from './identity.js';
-import { parseMessageText, unwrapMessageContent } from './parse.js';
+import { parseMessageText, quotedMessageId, unwrapMessageContent } from './parse.js';
 import { markOwnerMessageRead, markOwnerStatusRead, sendToOwner } from './send.js';
 import { ownerInput } from './trigger.js';
 
@@ -95,7 +95,7 @@ export function attachWhatsAppRouter(
       void markOwnerMessageRead(message.key);
       if (hasMedia) await handleOwnerMedia(message, sock);
       else if (input) await handleOwnerText(input, undefined, undefined, undefined, message.key.id ?? null,
-        'owner_text', { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt });
+        'owner_text', { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt }, quotedMessageId(message.message));
     };
     if (config.BOT_MODE === 'separate') queuedOwnerMessages += 1;
     const reply = (config.BOT_MODE === 'separate' ? ownerChain.then(work) : work()).catch((error: unknown) => {

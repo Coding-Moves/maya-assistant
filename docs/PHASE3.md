@@ -14,6 +14,14 @@ verified owner message or transcribed voice
 
 The owner-tool loop still allows only registered tools, three model turns and six calls. It can read the next clear class from the confirmed timetable, then create a private reminder before it. It never gives Gemini shell, SQL, arbitrary URLs, credentials, or a recipient choice. A pending task clarification is bound to the configured owner JID and expires after ten minutes; a bare choice cannot confirm another kind of pending action. The owner may mark a recently expired task done by name, or any expired task by its exact `done <id>` command; expiry itself never asserts completion.
 
+Maya also keeps at most three short private question-and-answer turns for 48 hours. When the owner replies to one of Maya's messages in WhatsApp, the matching earlier turn is selected first; otherwise recent dialogue helps with ordinary references such as “that one” or “the previous message.” This is a bounded convenience context, not permanent memory. It is never populated from group chats, and dialogue containing common credential labels is not retained.
+
+## Owner media update drafts
+
+An owner can send a supported image, PDF, text attachment, or voice note with a clear request such as “these deadlines are correct; update them all.” Maya extracts a small set of *proposed* academic task changes, resolves each by course and title, and saves an owner-bound preview for 15 minutes. It then lists additions, updates, cancellations, and unclear matches. A plain `yes` applies only the clear changes in that one preview; `no` discards it. An unclear item is never changed by a broad confirmation.
+
+The draft is not a source of authority: media and its transcription remain untrusted data, and the model cannot choose a task ID or make a write directly. Before the single SQLite transaction, Maya checks that the relevant task state still matches the preview. Each applied owner-originated change is recorded with its WhatsApp source reference in `owner_task_update_events`; existing group-message provenance on the task is retained. Messages that ask for general settings or group monitoring continue through the already restricted owner-tool loop. WhatsApp cannot edit deployment secrets, `.env`, source code, shell commands, the session, or arbitrary database rows.
+
 ## Evidence selection
 
 | Source | Selection | Trust and freshness |

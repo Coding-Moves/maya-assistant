@@ -69,6 +69,26 @@ CREATE TABLE IF NOT EXISTS owner_agent_requests (
   PRIMARY KEY (actor_jid, source_ref)
 );
 
+-- A short-lived, owner-bound preview of task changes extracted from owner text or media.
+CREATE TABLE IF NOT EXISTS owner_task_update_drafts (
+  actor_jid TEXT PRIMARY KEY,
+  source_ref TEXT,
+  payload_json TEXT NOT NULL,
+  state_revision TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_owner_task_update_drafts_expiry ON owner_task_update_drafts(expires_at);
+
+CREATE TABLE IF NOT EXISTS owner_task_update_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+  source_ref TEXT,
+  action TEXT NOT NULL,
+  at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_owner_task_update_events_task ON owner_task_update_events(task_id, id);
+
 CREATE TABLE IF NOT EXISTS owner_reminders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
@@ -146,6 +166,7 @@ CREATE TABLE IF NOT EXISTS owner_dialogue (
   actor_jid TEXT NOT NULL,
   question TEXT NOT NULL,
   answer TEXT NOT NULL,
+  answer_ref TEXT,
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_owner_dialogue_actor ON owner_dialogue(actor_jid, created_at DESC);

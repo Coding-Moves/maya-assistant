@@ -129,6 +129,27 @@ export function updateTask(id: number, changes: TaskChanges): boolean {
   );
 }
 
+/** Owner-originated changes retain the existing group provenance; the owner draft/audit records the new source. */
+export function updateTaskFromOwner(id: number, changes: Omit<TaskChanges, 'lastMsgId'>): boolean {
+  const assignments = ["updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"];
+  const values: (string | number | null)[] = [];
+  if (changes.subject !== undefined) { assignments.push('subject = ?'); values.push(changes.subject); }
+  if (changes.type !== undefined) { assignments.push('type = ?'); values.push(changes.type); }
+  if (changes.title !== undefined) { assignments.push('title = ?'); values.push(changes.title); }
+  if (changes.details !== undefined) { assignments.push('details = ?'); values.push(changes.details); }
+  if (changes.dueAt !== undefined) {
+    const dueAt = changes.dueAt === null ? null : normalizeUtcIso(changes.dueAt);
+    assignments.push('reminded_evening = CASE WHEN due_at IS NOT ? THEN 0 ELSE reminded_evening END');
+    assignments.push('reminded_morning = CASE WHEN due_at IS NOT ? THEN 0 ELSE reminded_morning END');
+    assignments.push('due_at = ?');
+    values.push(dueAt, dueAt, dueAt);
+  }
+  const reopensExpired = config.BOT_MODE === 'separate' && changes.dueAt != null && normalizeUtcIso(changes.dueAt) > new Date().toISOString();
+  if (reopensExpired) assignments.push("status = CASE WHEN status = 'expired' THEN 'open' ELSE status END");
+  return db.prepare(`UPDATE tasks SET ${assignments.join(', ')} WHERE id = ? AND status ${reopensExpired ? "IN ('open', 'expired')" : "= 'open'"}`)
+    .run(...values, checkedId(id)).changes === 1;
+}
+
 export function cancelTask(id: number, lastMsgId: number, reason?: string): boolean {
   return (
     db
@@ -142,6 +163,13 @@ export function cancelTask(id: number, lastMsgId: number, reason?: string): bool
       .run(checkedId(lastMsgId), reason ?? null, reason == null ? null : `Cancelled: ${reason}`, checkedId(id))
       .changes === 1
   );
+}
+
+export function cancelTaskFromOwner(id: number, reason?: string): boolean {
+  return db.prepare(`UPDATE tasks SET status = 'cancelled',
+    details = CASE WHEN ? IS NULL THEN details ELSE COALESCE(details || char(10), '') || ? END,
+    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND status = 'open'`)
+    .run(reason ?? null, reason == null ? null : `Cancelled by owner: ${reason}`, checkedId(id)).changes === 1;
 }
 
 export function markDone(id: number): boolean {

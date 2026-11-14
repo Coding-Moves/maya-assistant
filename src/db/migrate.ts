@@ -18,6 +18,10 @@ export function migrate(): void {
     if (!columns.some(({ name }) => name === 'due_precision')) {
       db.exec("ALTER TABLE tasks ADD COLUMN due_precision TEXT NOT NULL DEFAULT 'time'");
     }
+    const dialogueColumns = db.prepare('PRAGMA table_info(owner_dialogue)').all() as { name: string }[];
+    if (dialogueColumns.length > 0 && !dialogueColumns.some(({ name }) => name === 'answer_ref')) {
+      db.exec('ALTER TABLE owner_dialogue ADD COLUMN answer_ref TEXT');
+    }
     if (version < 2) db.pragma('user_version = 2');
   })();
 }

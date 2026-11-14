@@ -8,7 +8,7 @@ import { activeTimetables, timetableForDay } from '../db/repos/timetables.js';
 import { lastCalendarReadAt, upcomingCalendarEvents } from './calendar-read.js';
 import { formatInTimezone, localDateInTimezone } from '../utils/time.js';
 
-interface Dialogue { question: string; answer: string; createdAt: string }
+interface Dialogue { question: string; answer: string; answerRef: string | null; createdAt: string }
 type Evidence = Record<string, unknown>;
 const maxContextChars = 14_000;
 const dialogueMs = 48 * 60 * 60_000;
@@ -20,19 +20,37 @@ function safeText(value: string): string {
     .join('\n');
 }
 
-function recentDialogue(now: Date): Dialogue[] {
+const outgoingReplyRefs = new Map<string, { id: string; at: number }>();
+const outboundRefTtlMs = 10 * 60 * 1000;
+
+export function recordOwnerReplyRef(text: string, messageId: string | null | undefined): void {
+  if (!messageId || !text || config.BOT_MODE !== 'separate') return;
+  outgoingReplyRefs.set(text, { id: messageId, at: Date.now() });
+  for (const [key, value] of outgoingReplyRefs) {
+    if (value.at < Date.now() - outboundRefTtlMs) outgoingReplyRefs.delete(key);
+  }
+}
+
+function recentDialogue(now: Date, replyToRef: string | null = null): Dialogue[] {
   if (!config.OWNER_JID) return [];
-  return db.prepare<[string, string], { question: string; answer: string; createdAt: string }>(
-    `SELECT question, answer, created_at AS createdAt FROM owner_dialogue
+  const since = new Date(now.getTime() - dialogueMs).toISOString();
+  const direct = replyToRef ? db.prepare<[string, string, string], Dialogue>(
+    `SELECT question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
+     WHERE actor_jid = ? AND answer_ref = ? AND created_at >= ? ORDER BY id DESC LIMIT 1`,
+  ).get(config.OWNER_JID, replyToRef, since) : undefined;
+  const recent = db.prepare<[string, string], Dialogue>(
+    `SELECT question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
      WHERE actor_jid = ? AND created_at >= ? ORDER BY id DESC LIMIT 3`,
-  ).all(config.OWNER_JID, new Date(now.getTime() - dialogueMs).toISOString()).reverse();
+  ).all(config.OWNER_JID, since).reverse();
+  return direct ? [direct, ...recent.filter(({ answerRef }) => answerRef !== direct.answerRef)].slice(0, 3) : recent;
 }
 
 export function rememberDialogue(question: string, answer: string, now = new Date()): void {
   if (config.BOT_MODE !== 'separate' || !config.OWNER_JID ||
     credentialWords.test(question) || credentialWords.test(answer)) return;
-  db.prepare('INSERT INTO owner_dialogue (actor_jid, question, answer, created_at) VALUES (?, ?, ?, ?)')
-    .run(config.OWNER_JID, question.slice(0, 600), answer.slice(0, 600), now.toISOString());
+  const replyRef = outgoingReplyRefs.get(answer)?.id ?? null;
+  db.prepare('INSERT INTO owner_dialogue (actor_jid, question, answer, answer_ref, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(config.OWNER_JID, question.slice(0, 600), answer.slice(0, 600), replyRef, now.toISOString());
   db.prepare('DELETE FROM owner_dialogue WHERE created_at < ?')
     .run(new Date(now.getTime() - dialogueMs).toISOString());
 }
@@ -64,8 +82,8 @@ function appendEvidence(items: Evidence[], entry: Evidence): void {
   if (JSON.stringify([...items, entry]).length <= maxContextChars) items.push(entry);
 }
 
-export function separateContext(question: string, now = new Date()): string {
-  const dialogue = recentDialogue(now);
+export function separateContext(question: string, now = new Date(), replyToRef: string | null = null): string {
+  const dialogue = recentDialogue(now, replyToRef);
   const referential = /\b(?:it|that|there|this|those|same|one)\b|یہ|وہ/iu.test(question);
   const searchQuestion = referential && dialogue.length
     ? `${dialogue.at(-1)!.question} ${question}` : question;

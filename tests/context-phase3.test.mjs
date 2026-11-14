@@ -12,7 +12,7 @@ const { migrate } = await import('../src/db/migrate.ts');
 const { rememberGroup } = await import('../src/db/repos/groups.ts');
 const { setGroupPolicy } = await import('../src/db/repos/group-policies.ts');
 const { insertMessage } = await import('../src/db/repos/messages.ts');
-const { separateContext, rememberDialogue } = await import('../src/features/context.ts');
+const { separateContext, rememberDialogue, recordOwnerReplyRef } = await import('../src/features/context.ts');
 const { createTask } = await import('../src/db/repos/tasks.ts');
 migrate();
 after(() => db.close());
@@ -60,6 +60,14 @@ test('a follow-up about that group uses recent owner conversation but stays in t
   assert.deepEqual(context.selectedGroupNames, ['Probability and Statistics']);
   assert.ok(context.evidence.some((item) => item.text?.includes('timetable image')));
   assert.ok(context.evidence.every((item) => item.source !== 'Family Updates'));
+});
+
+test('a WhatsApp reply reference brings the exact earlier turn into the bounded private context', () => {
+  recordOwnerReplyRef('The exam room is Hall C.', 'maya-reply-42');
+  rememberDialogue('Where is the MTH1304 exam?', 'The exam room is Hall C.');
+  const context = JSON.parse(separateContext('What should I take there?', new Date(), 'maya-reply-42'));
+  assert.equal(context.recentOwnerConversation[0].question, 'Where is the MTH1304 exam?');
+  assert.equal(context.recentOwnerConversation[0].answer, 'The exam room is Hall C.');
 });
 
 test('deadline context includes source and course while remaining bounded', () => {

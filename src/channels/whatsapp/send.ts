@@ -3,6 +3,7 @@ import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { getConnectedSocket } from './connection.js';
 import { getOwnerChatJid, isOwnerChat } from './identity.js';
+import { recordOwnerReplyRef } from '../../features/context.js';
 
 const sentAt: { at: number }[] = [];
 const oneHourMs = 60 * 60 * 1000;
@@ -139,12 +140,13 @@ export async function sendToOwner(
   const reservation = { at: now };
   sentAt.push(reservation);
   try {
-    await sock.sendMessage(ownerJid, {
+    const outgoing = await sock.sendMessage(ownerJid, {
       text:
         config.BOT_MODE === 'self'
           ? `🤖 ${config.BOT_NAME}: ${text}`
           : text,
     });
+    recordOwnerReplyRef(text, outgoing?.key?.id);
     return true;
   } catch (error) {
     const index = sentAt.indexOf(reservation);
