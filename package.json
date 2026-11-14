@@ -15,6 +15,7 @@
     "import-vu": "tsx scripts/import-vu.ts",
     "sync-vu": "tsx scripts/sync-vu.ts",
     "eval:phase3": "node --import tsx tests/context-phase3.test.mjs && node --import tsx --test tests/natural-done.test.mjs tests/task-expiry.test.mjs tests/extract-expired.test.mjs tests/owner-agent.test.mjs tests/owner-media.test.mjs tests/group-media-separate.test.mjs tests/whatsapp-router-separate.test.mjs",
+    "eval:phase3:resources": "tsx scripts/eval-phase3-resources.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
