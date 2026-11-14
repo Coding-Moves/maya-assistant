@@ -9,6 +9,7 @@ process.env.DATABASE_PATH = ':memory:';
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
 const { createTask, openTasks } = await import('../src/db/repos/tasks.ts');
+const { updateTaskFromOwner } = await import('../src/db/repos/tasks.ts');
 const { handleOwnerTaskUpdateConfirmation, stageOwnerTaskUpdate } = await import('../src/features/owner-task-updates.ts');
 const { proposeOwnerAction } = await import('../src/db/repos/owner-actions.ts');
 const { handleOwnerText } = await import('../src/features/commands.ts');
@@ -41,6 +42,15 @@ test('an ambiguous media change is never applied by a broad confirmation', async
   assert.match(preview, /Need clarification/);
   assert.match(handleOwnerTaskUpdateConfirmation('yes', '123@s.whatsapp.net'), /need a clearer/i);
   assert.equal(openTasks().filter((task) => task.title === 'Quiz 1').every((task) => task.dueAt === null), true);
+});
+
+test('a preview is rejected when its target changes before confirmation, even in the same clock tick', async () => {
+  const id = createTask({ subject: 'PHY101', type: 'assignment', title: 'Lab report', dueAt: '2027-01-10T09:00:00.000Z' });
+  await stageOwnerTaskUpdate('Correct the Lab report deadline.', '123@s.whatsapp.net', 'wa-media-stale', async () => ({
+    actions: [{ op: 'update', title: 'Lab report', due_at: '2027-01-12T09:00:00+05:00' }],
+  }));
+  assert.equal(updateTaskFromOwner(id, { details: 'Changed somewhere else' }), true);
+  assert.throws(() => handleOwnerTaskUpdateConfirmation('yes', '123@s.whatsapp.net'), /task list changed/i);
 });
 
 test('a task draft does not steal yes from an existing owner-control confirmation', async () => {

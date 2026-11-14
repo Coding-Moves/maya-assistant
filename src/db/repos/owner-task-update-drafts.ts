@@ -28,7 +28,10 @@ function normalize(value: string | null | undefined): string {
 function currentTasks(): Task[] { return [...openTasks(), ...recentExpiredTasks()]; }
 
 export function taskStateRevision(tasks = currentTasks()): string {
-  return tasks.map(({ id, updatedAt, status }) => `${id}:${updatedAt}:${status}`).sort().join('|');
+  // Include the mutable task fields, not only updated_at: two writes can share SQLite's clock value.
+  return tasks.map(({ id, updatedAt, status, subject, type, title, details, dueAt, duePrecision }) =>
+    JSON.stringify([id, updatedAt, status, subject, type, title, details, dueAt, duePrecision]),
+  ).sort().join('|');
 }
 
 export function resolveDraftChange(change: Omit<DraftChange, 'taskId' | 'issue'>, tasks = currentTasks()): DraftChange {
