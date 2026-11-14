@@ -11,6 +11,7 @@ import { handleOwnerText } from './commands.js';
 import { MediaTooLargeError, MediaTypeMismatchError, download, mediaDetails, readMediaBytes, type DownloadMedia } from './media.js';
 import { createTimetableDraft, timetableExtractionSchema, type TimetableExtraction } from '../db/repos/timetables.js';
 import { timetablePreview } from './memory.js';
+import { quotedMessageId } from '../channels/whatsapp/parse.js';
 
 const timetableIntent = /\b(?:timetable|time\s*table|class schedule|class routine)\b|ٹائم\s*ٹیبل|شیڈول/iu;
 const timetableDescription = /\b(?:timetable|time\s*table|class schedule|class routine|weekly class schedule)\b|ٹائم\s*ٹیبل|شیڈول/iu;
@@ -97,7 +98,7 @@ export async function handleOwnerMedia(
       : `${details.caption ? `${details.caption}\n\n` : 'What is in this media?\n\n'}Media content: ${description}`;
     await handleText(input, undefined, undefined, undefined, message.key.id ?? null,
       details.kind === 'audio' ? 'owner_voice' : 'media_description',
-      { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt });
+      { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt }, quotedMessageId(message.message));
   } catch (error) {
     logger.warn({ messageId: message.key.id, errorType: error instanceof Error ? error.name : 'unknown' }, 'Could not read owner media');
     logger.debug({ err: error }, 'Owner media failure details');

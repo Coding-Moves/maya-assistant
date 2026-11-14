@@ -18,6 +18,16 @@ export function unwrapMessageContent(
   return content ?? null;
 }
 
+/** The WhatsApp message id being quoted by an owner reply, if any. */
+export function quotedMessageId(
+  message: WAMessageContent | null | undefined,
+): string | null {
+  const content = unwrapMessageContent(message);
+  const context = content?.extendedTextMessage?.contextInfo ?? content?.imageMessage?.contextInfo ??
+    content?.videoMessage?.contextInfo ?? content?.documentMessage?.contextInfo ?? content?.audioMessage?.contextInfo;
+  return typeof context?.stanzaId === 'string' && context.stanzaId ? context.stanzaId : null;
+}
+
 export function parseMessageText(
   message: WAMessageContent | null | undefined,
 ): string | null {

@@ -11,6 +11,7 @@ import { handleNaturalMemory } from './memory-intent.js';
 import { getOwnerChatJid } from '../channels/whatsapp/identity.js';
 import { handleOwnerControlConfirmation, runOwnerAgent, type OwnerMessageIdentity } from './owner-agent.js';
 import { isOwnerControlRequest } from './owner-tools.js';
+import { handleOwnerTaskUpdateConfirmation, stageOwnerTaskUpdate } from './owner-task-updates.js';
 
 export async function handleOwnerText(
   text: string,
@@ -20,12 +21,21 @@ export async function handleOwnerText(
   sourceRef: string | null = null,
   inputKind: 'owner_text' | 'owner_voice' | 'media_description' = 'owner_text',
   identity: OwnerMessageIdentity = { jid: null },
+  replyToRef: string | null = null,
 ): Promise<void> {
   const input = text.trim();
   if (!input) return;
   const lower = input.toLowerCase();
   if (inputKind === 'media_description') {
-    await answer(input);
+    const actor = getOwnerChatJid();
+    if (actor && !/^(?:done|complete)\s+[1-9]\d*$/iu.test(input)) {
+      const updateReply = await stageOwnerTaskUpdate(input, actor, sourceRef);
+      if (updateReply !== null) {
+        await send(updateReply);
+        return;
+      }
+    }
+    await answer(input, undefined, undefined, undefined, undefined, replyToRef);
     return;
   }
 
@@ -36,6 +46,14 @@ export async function handleOwnerText(
   }
 
   if (config.BOT_MODE === 'separate') {
+    const actor = getOwnerChatJid();
+    if (actor) {
+      const taskUpdateConfirmation = handleOwnerTaskUpdateConfirmation(input, actor);
+      if (taskUpdateConfirmation !== null) {
+        await send(taskUpdateConfirmation);
+        return;
+      }
+    }
     const confirmation = identity.jid ? handleOwnerControlConfirmation(input, sourceRef, identity) : null;
     if (confirmation !== null) {
       await send(confirmation);
@@ -57,6 +75,13 @@ export async function handleOwnerText(
     if (naturalReply !== null) {
       await send(naturalReply);
       return;
+    }
+    if (actor && !/^(?:done|complete)\s+[1-9]\d*$/iu.test(input)) {
+      const updateReply = await stageOwnerTaskUpdate(input, actor, sourceRef);
+      if (updateReply !== null) {
+        await send(updateReply);
+        return;
+      }
     }
     clearCompletionContext();
   }
@@ -143,5 +168,5 @@ export async function handleOwnerText(
     return;
   }
 
-  await answer(input);
+  await answer(input, undefined, undefined, undefined, undefined, replyToRef);
 }
