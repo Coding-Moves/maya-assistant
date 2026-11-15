@@ -24,7 +24,7 @@ Maya asks for a specific group, date, or reminder when it cannot safely resolve 
 | `MEDIA_BATCH_SIZE` | 1–3 | Maximum queued group files processed in one extraction run. |
 | `EXTRACT_BATCH_SIZE` | 1–50 | Maximum queued messages sent in one extraction batch. |
 
-Raising the media limit or switching media reading on or off needs confirmation. Every group-policy change also needs confirmation. A change takes effect on the next media or extraction operation. Existing in-flight reads keep the limit they started with. The scheduled extraction interval, cron expressions, reply-rate safety limit, model, bot/owner identity, database/auth paths, Gemini key, Google OAuth values, and VU credentials remain `.env`-only and require a restart when changed. No tool reads or edits arbitrary environment variables or secrets.
+Raising the media limit or switching media reading on or off needs confirmation. Every group-policy change also needs confirmation. The owner can also pause or resume NFC, VU, or both university deadline checks by text or voice; that needs confirmation and preserves existing tasks/reminders. A change takes effect on the next media, extraction, or source operation. Existing in-flight reads keep the limit they started with. The scheduled extraction interval, cron expressions, reply-rate safety limit, model, bot/owner identity, database/auth paths, Gemini key, Google OAuth values, and VU credentials remain `.env`-only and require a restart when changed. NFC secret values live in OCI Vault; `.env` contains only their references. No tool reads or edits arbitrary environment variables or secrets.
 
 ## Groups and large files
 
@@ -44,4 +44,4 @@ An owner-created reminder has a title and an exact future time within one year. 
 
 `src/config/runtime.ts` is the allowlisted settings service; `src/db/repos/group-policies.ts` applies group rules at ingestion and in the queued-message/media and retrieval queries. `owner_agent_requests` and `owner_action_audit` prevent duplicate writes on WhatsApp redelivery and record action metadata without secrets. To add a tool, define a bounded schema and result, specify its owner scope, target, risk, confirmation and revision rules, then add deterministic tests for invalid input, replay, and a partial failure. Do not add arbitrary SQL, shell, filesystem, recipient, secret, or URL tools.
 
-Before deploying the schema migration to a host with real data, run `npm run backup-db` there and keep the snapshot private. The app upgrades SQLite to `user_version=2` on startup. A branch push alone does not update the running VM; deployment follows a merged main build and the host's deployment workflow.
+Before deploying the schema migration to a host with real data, run `npm run backup-db` there and keep the snapshot private. The app upgrades SQLite to `user_version=3` on startup. A branch push alone does not update the running VM; deployment follows a merged main build and the host's deployment workflow.

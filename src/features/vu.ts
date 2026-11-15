@@ -1,11 +1,15 @@
 import { upsertVuItems } from '../sources/vu/classic-todo.js';
 import { fetchClassicTodoItems } from '../sources/vu/lms.js';
 import { db } from '../db/client.js';
+import { universityCheckingPaused } from '../db/repos/source-controls.js';
 
 export async function syncVuClassicTodo(
   fetchItems: typeof fetchClassicTodoItems = fetchClassicTodoItems,
   apply: typeof upsertVuItems = upsertVuItems,
 ): Promise<{ created: number; updated: number; unchanged: number }> {
+  if (universityCheckingPaused('vu-classic-todo')) {
+    return { created: 0, updated: 0, unchanged: 0 };
+  }
   try {
     const items = await fetchItems();
     const result = apply(items);

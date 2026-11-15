@@ -193,6 +193,8 @@ export function handleOwnerControlConfirmation(text: string, sourceRef: string |
             (args.key === 'MEDIA_ENABLED' && /\bmedia\b/iu.test(said))
           : proposal.toolName === 'cancel_reminder'
             ? /\breminder\b/iu.test(said) && said.includes(String(args.reminderId))
+            : proposal.toolName === 'set_university_checking'
+              ? /\b(?:university|nfc|vu|lms)\b/iu.test(said)
             : proposal.toolName === 'cleanup_expired_memories'
               ? /\b(?:expired|temporary)\b/iu.test(said) && /\b(?:memor|clean|clear|delet)/iu.test(said)
               : false;

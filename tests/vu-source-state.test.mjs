@@ -9,6 +9,7 @@ process.env.DATABASE_PATH = ':memory:';
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
 const { syncVuClassicTodo } = await import('../src/features/vu.ts');
+const { setUniversityCheckingPaused } = await import('../src/db/repos/source-controls.ts');
 migrate();
 after(() => db.close());
 
@@ -22,4 +23,12 @@ test('manual and scheduled VU sync share success/failure state', async () => {
   state = db.prepare("SELECT last_success_at, last_failure_at FROM source_sync_state WHERE source = 'vu-classic-todo'").get();
   assert.ok(state.last_success_at);
   assert.equal(state.last_failure_at, null);
+});
+
+test('a paused VU source does not access the portal', async () => {
+  setUniversityCheckingPaused('vu-classic-todo', true);
+  assert.deepEqual(await syncVuClassicTodo(async () => {
+    throw new Error('portal must not be called while VU is paused');
+  }), { created: 0, updated: 0, unchanged: 0 });
+  setUniversityCheckingPaused('vu-classic-todo', false);
 });

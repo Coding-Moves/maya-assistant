@@ -177,6 +177,28 @@ CREATE TABLE IF NOT EXISTS source_sync_state (
   last_failure_at TEXT
 );
 
+-- LMS checks can be paused independently without deleting imported assignment records.
+CREATE TABLE IF NOT EXISTS source_controls (
+  source TEXT PRIMARY KEY,
+  checking_paused INTEGER NOT NULL DEFAULT 0 CHECK (checking_paused IN (0, 1)),
+  reminders_paused INTEGER NOT NULL DEFAULT 0 CHECK (reminders_paused IN (0, 1)),
+  updated_at TEXT NOT NULL
+);
+
+-- NFC portal metadata stays separate from a generic reminder task.
+CREATE TABLE IF NOT EXISTS nfc_assignments (
+  assignment_id TEXT PRIMARY KEY,
+  task_id INTEGER UNIQUE REFERENCES tasks(id) ON DELETE SET NULL,
+  course_code TEXT NOT NULL,
+  portal_status TEXT NOT NULL,
+  marks TEXT,
+  portal_url TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  submitted_at TEXT,
+  submission_receipt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_nfc_assignments_status ON nfc_assignments(portal_status, last_seen_at);
+
 CREATE TABLE IF NOT EXISTS calendar_jobs (
   task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
   revision INTEGER NOT NULL DEFAULT 1
