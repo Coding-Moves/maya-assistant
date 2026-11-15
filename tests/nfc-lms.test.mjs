@@ -21,6 +21,14 @@ test('parses NFC CMS assignment rows with Pakistan-time deadlines and stable por
   }]);
 });
 
+test('accepts a same-site relative assignment link and stores its canonical URL', () => {
+  const [item] = parseNfcAssignmentRows([{
+    cells: ['Assignment 3', 'AI-313', '20', '18 Oct 2026, 10:00 AM', 'Open', 'View'],
+    href: '/student/assignments/69',
+  }]);
+  assert.equal(item.portalUrl, 'https://www.cms.nfciet.com/student/assignments/69');
+});
+
 test('rejects NFC deadline or table changes instead of guessing', () => {
   assert.throws(() => parseNfcDueDate('tomorrow sometime'), /unrecognized assignment deadline/);
   assert.throws(() => parseNfcAssignmentRows([{

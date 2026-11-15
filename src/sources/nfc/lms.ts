@@ -44,11 +44,14 @@ export function parseNfcAssignmentRows(rows: readonly { cells: string[]; href: s
   return rows.map(({ cells, href }) => {
     if (cells.length !== 6 || !href) throw new Error('NFC CMS assignment table layout changed');
     const [title, course, marks, due, status] = cells.map((cell) => cell.trim());
-    const id = /\/student\/assignments\/(\d+)$/u.exec(new URL(href).pathname)?.[1];
+    const assignmentUrl = new URL(href, ASSIGNMENTS_URL);
+    const id = assignmentUrl.origin === new URL(LOGIN_URL).origin
+      ? /\/student\/assignments\/(\d+)$/u.exec(assignmentUrl.pathname)?.[1]
+      : undefined;
     if (!id || ids.has(id) || !title || !course) throw new Error('NFC CMS assignment row is invalid');
     ids.add(id);
     return { externalId: id, title: title.slice(0, 300), course: course.slice(0, 100), marks: marks || null,
-      dueAt: parseNfcDueDate(due ?? ''), status: normalizedStatus(status ?? ''), portalUrl: href };
+      dueAt: parseNfcDueDate(due ?? ''), status: normalizedStatus(status ?? ''), portalUrl: assignmentUrl.href };
   });
 }
 
