@@ -5,6 +5,7 @@ import { getRuntimeSetting, listRuntimeSettings, resetRuntimeSetting, setRuntime
 } from '../config/runtime.js';
 import { db } from '../db/client.js';
 import { getGroupPolicy, listGroupPolicies, setGroupPause, setGroupPolicy } from '../db/repos/group-policies.js';
+import { setUniversityCheckingPaused, universityCheckingPaused, type UniversitySource } from '../db/repos/source-controls.js';
 import { clearMemoryIds, expiredTemporaryMemories, listMemories } from '../db/repos/memories.js';
 import { markDone } from '../db/repos/tasks.js';
 import { cancelOwnerReminder, createOwnerReminder, getOwnerReminder, listOwnerReminders,
@@ -58,6 +59,11 @@ const empty = z.object({}).strict();
 const settingKey = z.enum(['MEDIA_ENABLED', 'MEDIA_MAX_BYTES', 'MEDIA_BATCH_SIZE', 'EXTRACT_BATCH_SIZE']);
 const changeableKey = z.enum(['MEDIA_ENABLED', 'MEDIA_BATCH_SIZE', 'EXTRACT_BATCH_SIZE']);
 const groupArg = z.object({ group: z.string().trim().min(1).max(120) }).strict();
+const universityArg = z.object({ university: z.enum(['nfc', 'vu', 'both']), enabled: z.boolean() }).strict();
+
+function selectedUniversities(university: z.output<typeof universityArg>['university']): UniversitySource[] {
+  return university === 'nfc' ? ['nfc-cms'] : university === 'vu' ? ['vu-classic-todo'] : ['nfc-cms', 'vu-classic-todo'];
+}
 
 function groupId(nameOrId: string): string {
   const candidate = nameOrId.trim().replace(/\s+group$/iu, '');
@@ -120,6 +126,19 @@ const registry: OwnerTool[] = [
     { revision: ({ key }) => JSON.stringify(getRuntimeSetting(key)),
       confirm: ({ key }) => key === 'MEDIA_ENABLED',
       preview: ({ key, value }) => `set ${key} to ${String(value)}` }),
+  tool('set_university_checking', 'Pause or resume deadline checks for NFC, VU, or both universities. Pausing never deletes known assignments or stops their existing reminders.', 'sensitive', universityArg,
+    ({ university }) => `university:${university}`,
+    ({ university, enabled }) => {
+      const sources = selectedUniversities(university);
+      sources.forEach((source) => setUniversityCheckingPaused(source, !enabled));
+      const label = university === 'both' ? 'NFC and VU' : university.toUpperCase();
+      return { message: enabled
+        ? `${label} deadline checking is back on. Your existing reminders stayed in place.`
+        : `${label} deadline checking is paused. I kept your existing assignments and reminders.` };
+    },
+    { revision: ({ university }) => selectedUniversities(university).map((source) => `${source}:${universityCheckingPaused(source)}`).join(','),
+      confirm: () => true,
+      preview: ({ university, enabled }) => `${enabled ? 'resume' : 'pause'} ${university === 'both' ? 'NFC and VU' : university.toUpperCase()} deadline checking` }),
   tool('reset_runtime_setting', 'Remove a non-secret runtime override and restore the deployment default.', 'reversible',
     z.object({ key: settingKey }).strict(), ({ key }) => key,
     ({ key }) => ({ message: `${key} is back to its deployment default: ${String(resetRuntimeSetting(key))}.` }),
@@ -233,7 +252,7 @@ export function isOwnerControlRequest(text: string): boolean {
   const input = text.toLocaleLowerCase();
   if (/\b(?:whatsapp|my|your)\s+status\b/iu.test(input) &&
     !/\b(?:system|service|settings?|monitoring)\b/iu.test(input)) return false;
-  return /\b(?:settings?|media\s+(?:reading|limit|size|batch|on|off|band)|(?:enable|disable|turn\s+(?:on|off))\s+media|\d+\s*mb|monitor(?:ing)?|pause|resume|health|queue|cleanup|expired|remind(?:er|ers)?|alert|system\s+status|maya\s+status)\b/iu.test(input) ||
+  return /\b(?:settings?|media\s+(?:reading|limit|size|batch|on|off|band)|(?:enable|disable|turn\s+(?:on|off))\s+media|\d+\s*mb|monitor(?:ing)?|pause|resume|health|queue|cleanup|expired|remind(?:er|ers)?|alert|system\s+status|maya\s+status|(?:nfc|vu|university)\s+(?:checking|check|monitoring))\b/iu.test(input) ||
     (/\bgroups?\b/iu.test(input) && /\b(?:list|show|set|change|pause|resume|stop|start|enable|disable|turn|policy|monitor|reading|off|on)\b/iu.test(input)) ||
     /سیٹنگ|نگرانی|یاد\s*دلاؤ|\b(?:group|media)\s+(?:ko|ki)\s+(?:band|on|off|chalu)\b/iu.test(input);
 }

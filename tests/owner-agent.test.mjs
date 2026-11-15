@@ -15,6 +15,7 @@ const { runOwnerAgent, handleOwnerControlConfirmation } = await import('../src/f
 const { getRuntimeSetting } = await import('../src/config/runtime.ts');
 const { rememberGroup } = await import('../src/db/repos/groups.ts');
 const { getGroupPolicy } = await import('../src/db/repos/group-policies.ts');
+const { universityCheckingPaused } = await import('../src/db/repos/source-controls.ts');
 const { listOwnerReminders } = await import('../src/db/repos/owner-reminders.ts');
 const { sendDueOwnerReminders } = await import('../src/features/owner-reminders.ts');
 const { handleOwnerText } = await import('../src/features/commands.ts');
@@ -105,6 +106,15 @@ test('Urdu cancellation leaves a proposed setting unchanged', async () => {
     async () => call('set_runtime_setting', { key: 'MEDIA_ENABLED', value: true })), /confirm/i);
   assert.match(handleOwnerControlConfirmation('نہیں', 'request-9c', owner), /left it as it was/);
   assert.equal(getRuntimeSetting('MEDIA_ENABLED'), false);
+});
+
+test('university deadline checks need confirmation and can pause NFC without losing records', async () => {
+  assert.match(await runOwnerAgent('Pause NFC deadline checking', 'request-nfc-pause', owner,
+    async () => call('set_university_checking', { university: 'nfc', enabled: false })), /confirm/i);
+  assert.equal(universityCheckingPaused('nfc-cms'), false);
+  assert.match(handleOwnerControlConfirmation('yes, pause NFC checking', 'request-nfc-pause-confirm', owner), /paused/i);
+  assert.equal(universityCheckingPaused('nfc-cms'), true);
+  assert.equal(universityCheckingPaused('vu-classic-todo'), false);
 });
 
 test('owner reminders send once after their due time and retry a failed send', async () => {
