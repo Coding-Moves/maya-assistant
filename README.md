@@ -2,7 +2,7 @@
 
 **Your personal WhatsApp assistant that never misses a deadline.**
 
-**Development status:** Core and Phases 2–5 are implemented. The separate-number assistant now selects bounded, relevant context for private answers and can carry a short follow-up across a restart. Media reading, Google Calendar, and daily VU Classic To Do checks require opt-in setup. Live VU login and import have been verified; the next unattended daily run still needs confirmation. The live Calendar check remains with the owner.
+**Development status:** Core and Phases 2–5 are implemented. The separate-number assistant now selects bounded, relevant context for private answers and can carry a short follow-up across a restart. Media reading, Google Calendar, daily VU Classic To Do checks, and read-only NFC-IET CMS assignment checks require opt-in setup. NFC uploads are deliberately not enabled yet.
 
 If you're in a busy WhatsApp group (a class, a course, a team, a community), you know the problem: the important stuff gets buried. A quiz date is posted at 11 PM, someone changes the room the next morning, and by Friday it's lost under 200 messages of "ok" and "thanks". You find out the deadline was yesterday.
 
@@ -23,6 +23,7 @@ Maya fixes that. On her own number, she quietly reads every group she has joined
 - 🎛️ **Lets you manage safe settings privately** in separate mode: ask for current settings, a media limit up to 10 MB, group monitoring rules, or a personal reminder. Maya previews sensitive changes and waits for your confirmation. See [owner controls](docs/OWNER-CONTROLS.md).
 - 👀 **Views only your WhatsApp Status** in separate mode and sends you a short private comment when she can read its text, caption, photo, or supported video. She does not store Status content or turn it into tasks, and ignores other people's Status updates. Photo and video comments send the media to Gemini and use the configured `MEDIA_MAX_BYTES` limit, independently of `MEDIA_ENABLED` (which controls group and direct owner media). Unsupported or oversized Status media without a caption is viewed without a comment.
 - 📚 **Tracks VU Classic To Do deadlines** for quizzes and assignments through an optional daily portal check or a manual CSV import.
+- 🎓 **Tracks NFC-IET CMS assignments** through an optional read-only daily portal check. It never uploads or submits coursework automatically.
 - 📅 **Connects to Google Calendar** when authorized: Maya creates events for her dated tasks, reads upcoming meetings, answers questions about them, and reminds you once on the day of events whose title contains `important`.
 - 🔒 **Runs on your own machine.** Messages and tasks are stored locally in SQLite; joined group text is sent to Gemini for analysis in separate mode.
 - 💸 **API costs depend on your Gemini plan and usage.** Check your model's pricing and set a budget alert before leaving Maya running.
@@ -82,6 +83,8 @@ To read media, set `MEDIA_ENABLED=true` or ask Maya to switch it on in separate 
 Google Calendar sync is optional. To enable it, follow [the Calendar setup guide](docs/CALENDAR.md). Dated open tasks become Calendar events; changing a task updates its event, and completing or cancelling it removes the event. In separate mode, Maya also reads the next 30 days of Calendar events hourly for private questions. The morning job and hourly checks remind you once about today's events with `important` in the title. Edits made in Google Calendar do not change Maya tasks. For a long-running personal Calendar connection, deploy and configure the small public OAuth information site using [the Maya site guide](docs/MAYA-SITE-DEPLOYMENT.md), then publish the Google consent app and re-authorize once.
 
 VU students can enable an optional daily check of only the assignment and quiz tables in Classic To Do, or continue using the manual CSV importer. Follow [the VU setup guide](docs/VU-CLASSIC-TODO.md). The automatic check requires private LMS credentials and a Chromium browser on the host; Maya does not read bell, notice-board, or GDB items.
+
+NFC-IET students can enable a read-only daily Assignment-page check with credentials held in OCI Vault. Follow [the NFC CMS guide](docs/NFC-CMS.md). Maya records verified portal deadlines and states, but has no file-upload or submission feature.
 
 For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage.
 

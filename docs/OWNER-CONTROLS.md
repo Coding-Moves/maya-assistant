@@ -24,7 +24,7 @@ Maya asks for a specific group, date, or reminder when it cannot safely resolve 
 | `MEDIA_BATCH_SIZE` | 1–3 | Maximum queued group files processed in one extraction run. |
 | `EXTRACT_BATCH_SIZE` | 1–50 | Maximum queued messages sent in one extraction batch. |
 
-Raising the media limit or switching media reading on or off needs confirmation. Every group-policy change also needs confirmation. A change takes effect on the next media or extraction operation. Existing in-flight reads keep the limit they started with. The scheduled extraction interval, cron expressions, reply-rate safety limit, model, bot/owner identity, database/auth paths, Gemini key, Google OAuth values, and VU credentials remain `.env`-only and require a restart when changed. No tool reads or edits arbitrary environment variables or secrets.
+Raising the media limit or switching media reading on or off needs confirmation. Every group-policy change also needs confirmation. The owner can also pause or resume NFC, VU, or both university deadline checks by text or voice; that needs confirmation and preserves existing tasks/reminders. A change takes effect on the next media, extraction, or source operation. Existing in-flight reads keep the limit they started with. The scheduled extraction interval, cron expressions, reply-rate safety limit, model, bot/owner identity, database/auth paths, Gemini key, Google OAuth values, and VU credentials remain `.env`-only and require a restart when changed. NFC secret values live in OCI Vault; `.env` contains only their references. No tool reads or edits arbitrary environment variables or secrets.
 
 ## Groups and large files
 
