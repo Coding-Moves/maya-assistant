@@ -24,7 +24,9 @@ function normalizedStatus(value: string): NfcAssignment['status'] {
   if (input.includes('review')) return 'reviewing';
   if (input.includes('graded')) return 'graded';
   if (input.includes('open') || input.includes('pending') || input.includes('active')) return 'open';
-  return 'unknown';
+  // A new label may mean the portal changed its lifecycle. Do not guess that an
+  // assignment is actionable and create a reminder from an unfamiliar state.
+  throw new Error('NFC CMS has an unrecognized assignment status');
 }
 
 export function parseNfcDueDate(value: string): string {
@@ -75,7 +77,10 @@ export async function fetchNfcAssignments(credentials: NfcCredentials): Promise<
     await page.locator('button[type="submit"]').click();
     await page.waitForURL((url) => url.pathname === '/student/dashboard', { timeout: 30_000 });
     await page.goto(ASSIGNMENTS_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    if (new URL(page.url()).pathname !== '/student/assignments') throw new Error('NFC CMS assignments page did not open after sign-in');
+    const assignmentsUrl = new URL(page.url());
+    if (assignmentsUrl.origin !== new URL(LOGIN_URL).origin || assignmentsUrl.pathname !== '/student/assignments') {
+      throw new Error('NFC CMS assignments page did not open after sign-in');
+    }
     return parseNfcAssignmentRows(await assignmentRows(page));
   } finally {
     await browser.close();

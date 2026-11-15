@@ -27,3 +27,10 @@ test('rejects NFC deadline or table changes instead of guessing', () => {
     cells: ['Assignment', 'AI-312'], href: 'https://www.cms.nfciet.com/student/assignments/68',
   }]), /table layout changed/);
 });
+
+test('rejects an unfamiliar NFC assignment lifecycle', () => {
+  assert.throws(() => parseNfcAssignmentRows([{
+    cells: ['Assignment', 'AI-312', '10', '17 Oct 2026, 02:56 PM', 'Waiting for faculty', 'View'],
+    href: 'https://www.cms.nfciet.com/student/assignments/68',
+  }]), /unrecognized assignment status/);
+});

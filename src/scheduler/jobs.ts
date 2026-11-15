@@ -8,6 +8,7 @@ import { extractOnce } from '../features/extract.js';
 import { processPendingMedia } from '../features/media.js';
 import { runWeeklyPlan } from '../features/weeklyPlan.js';
 import { syncVuClassicTodo } from '../features/vu.js';
+import { syncNfcAssignments } from '../features/nfc.js';
 import { sendToOwner } from '../channels/whatsapp/send.js';
 import { logger } from '../utils/logger.js';
 import { cleanupMemories } from '../db/repos/memories.js';
@@ -28,6 +29,7 @@ interface JobDependencies {
   calendar: typeof syncCalendarOnce;
   calendarRead: typeof syncUpcomingCalendarEvents;
   vu: typeof syncVuClassicTodo;
+  nfc: typeof syncNfcAssignments;
   schedule: typeof cron.schedule;
   every: typeof setInterval;
   clear: typeof clearInterval;
@@ -62,6 +64,7 @@ export function startJobs(
   const calendar = dependencies.calendar ?? syncCalendarOnce;
   const calendarRead = dependencies.calendarRead ?? syncUpcomingCalendarEvents;
   const vu = dependencies.vu ?? syncVuClassicTodo;
+  const nfc = dependencies.nfc ?? syncNfcAssignments;
   const schedule = dependencies.schedule ?? cron.schedule;
   const every = dependencies.every ?? setInterval;
   const clear = dependencies.clear ?? clearInterval;
@@ -71,6 +74,7 @@ export function startJobs(
   });
   let extractionRunning = false;
   let vuRunning = false;
+  let nfcRunning = false;
   let stopping = false;
   let stopWork: Promise<void> | null = null;
   const pending = new Set<Promise<unknown>>();
@@ -139,6 +143,19 @@ export function startJobs(
       vuRunning = false;
     }
   };
+  const runNfc = async () => {
+    if (stopping || nfcRunning) return;
+    nfcRunning = true;
+    try {
+      const counts = await nfc();
+      logger.info({ ...counts }, 'NFC CMS assignment sync completed');
+    } catch (error) {
+      logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'NFC CMS assignment sync failed');
+      await sendToOwner('I couldn’t update your NFC assignment deadlines today. I have not attempted any upload; I’ll try again at the next scheduled check.');
+    } finally {
+      nfcRunning = false;
+    }
+  };
 
   const jobs = [
     schedule(config.MORNING_DIGEST_CRON, () => runScheduledJob('morning'), {
@@ -187,6 +204,15 @@ export function startJobs(
       timezone: config.TIMEZONE,
       noOverlap: true,
       name: 'maya-vu-classic-todo',
+    }));
+  }
+  if (config.NFC_CMS_SYNC) {
+    jobs.push(schedule(config.NFC_SYNC_CRON, () => {
+      if (!stopping) track(runNfc());
+    }, {
+      timezone: config.TIMEZONE,
+      noOverlap: true,
+      name: 'maya-nfc-assignments',
     }));
   }
   const extractionTimer = every(
