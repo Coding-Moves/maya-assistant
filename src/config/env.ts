@@ -62,6 +62,10 @@ const envSchema = z
     VU_LMS_SYNC: booleanFlag('false'),
     VU_STUDENT_ID: z.string().trim().default(''),
     VU_PASSWORD: z.string().default(''),
+    NFC_CMS_SYNC: booleanFlag('false'),
+    NFC_SYNC_CRON: cronExpression('0 7 * * *'),
+    NFC_STUDENT_ID_SECRET_OCID: z.string().trim().default(''),
+    NFC_PASSWORD_SECRET_OCID: z.string().trim().default(''),
     MAX_REPLIES_PER_HOUR: positiveInteger(20),
     DATABASE_PATH: z.string().trim().min(1).default('./data/maya.db'),
     AUTH_DIR: z.string().trim().min(1).default('./auth_info'),
@@ -80,6 +84,9 @@ const envSchema = z
     }
     if (value.VU_LMS_SYNC && (!value.VU_STUDENT_ID || !value.VU_PASSWORD)) {
       context.addIssue({ code: 'custom', path: ['VU_LMS_SYNC'], message: 'requires VU_STUDENT_ID and VU_PASSWORD' });
+    }
+    if (value.NFC_CMS_SYNC && (!value.NFC_STUDENT_ID_SECRET_OCID || !value.NFC_PASSWORD_SECRET_OCID)) {
+      context.addIssue({ code: 'custom', path: ['NFC_CMS_SYNC'], message: 'requires NFC_STUDENT_ID_SECRET_OCID and NFC_PASSWORD_SECRET_OCID' });
     }
   });
 

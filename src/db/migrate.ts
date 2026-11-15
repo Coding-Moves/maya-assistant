@@ -6,7 +6,7 @@ const schema = readFileSync(new URL('./schema.sql', import.meta.url), 'utf8');
 export function migrate(): void {
   db.transaction(() => {
     const version = Number(db.pragma('user_version', { simple: true }));
-    if (version > 2) throw new Error(`Database schema version ${version} is newer than this Maya build`);
+    if (version > 3) throw new Error(`Database schema version ${version} is newer than this Maya build`);
     const hadMessageFts = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messages_fts'").get());
     db.exec(schema);
     if (!hadMessageFts) db.exec("INSERT INTO messages_fts(messages_fts) VALUES ('rebuild')");
@@ -22,6 +22,6 @@ export function migrate(): void {
     if (dialogueColumns.length > 0 && !dialogueColumns.some(({ name }) => name === 'answer_ref')) {
       db.exec('ALTER TABLE owner_dialogue ADD COLUMN answer_ref TEXT');
     }
-    if (version < 2) db.pragma('user_version = 2');
+    if (version < 3) db.pragma('user_version = 3');
   })();
 }
