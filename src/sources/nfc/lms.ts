@@ -55,6 +55,21 @@ export function parseNfcAssignmentRows(rows: readonly { cells: string[]; href: s
   });
 }
 
+export function findNfcAssignmentHref(hrefs: readonly (string | null)[]): string | null {
+  for (const href of hrefs) {
+    if (!href) continue;
+    try {
+      const candidate = new URL(href, ASSIGNMENTS_URL);
+      if (candidate.origin === new URL(LOGIN_URL).origin && /\/student\/assignments\/\d+$/u.test(candidate.pathname)) {
+        return href;
+      }
+    } catch {
+      // Ignore malformed links from the portal and let the row validation fail safely.
+    }
+  }
+  return null;
+}
+
 async function assignmentRows(page: Page): Promise<{ cells: string[]; href: string | null }[]> {
   const rows = await page.locator('table tr').all();
   if (rows.length > 501) throw new Error('NFC CMS has too many assignments');
@@ -62,7 +77,9 @@ async function assignmentRows(page: Page): Promise<{ cells: string[]; href: stri
   for (const row of rows.slice(1)) {
     result.push({
       cells: (await row.locator(':scope > th, :scope > td').allInnerTexts()).map((cell) => cell.trim()),
-      href: await row.locator('a[href*="/student/assignments/"]').getAttribute('href'),
+      href: findNfcAssignmentHref(await row.locator('a[href]').evaluateAll(
+        (anchors) => anchors.map((anchor) => anchor.getAttribute('href')),
+      )),
     });
   }
   return result;
