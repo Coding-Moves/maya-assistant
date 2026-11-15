@@ -7,7 +7,7 @@ process.env.BOT_MODE = 'separate';
 process.env.OWNER_JID = '999999999999@s.whatsapp.net';
 process.env.TIMEZONE = 'Asia/Karachi';
 
-const { parseNfcAssignmentRows, parseNfcDueDate } = await import('../src/sources/nfc/lms.ts');
+const { findNfcAssignmentHref, parseNfcAssignmentRows, parseNfcDueDate } = await import('../src/sources/nfc/lms.ts');
 
 test('parses NFC CMS assignment rows with Pakistan-time deadlines and stable portal IDs', () => {
   const items = parseNfcAssignmentRows([{
@@ -27,6 +27,14 @@ test('accepts a same-site relative assignment link and stores its canonical URL'
     href: '/student/assignments/69',
   }]);
   assert.equal(item.portalUrl, 'https://www.cms.nfciet.com/student/assignments/69');
+});
+
+test('selects the assignment page instead of its download attachment link', () => {
+  assert.equal(findNfcAssignmentHref([
+    'https://www.cms.nfciet.com/student/assignments/68/file',
+    'https://www.cms.nfciet.com/student/assignments/68',
+  ]), 'https://www.cms.nfciet.com/student/assignments/68');
+  assert.equal(findNfcAssignmentHref(['https://example.com/student/assignments/68']), null);
 });
 
 test('rejects NFC deadline or table changes instead of guessing', () => {
