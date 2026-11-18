@@ -86,7 +86,7 @@ VU students can enable an optional daily check of only the assignment and quiz t
 
 NFC-IET students can enable a read-only daily Assignment-page check with credentials held in OCI Vault. Follow [the NFC CMS guide](docs/NFC-CMS.md). Maya records verified portal deadlines and states, but has no file-upload or submission feature.
 
-For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage.
+For an always-on host, see the [hosting guide](docs/HOSTING.md). It covers the current systemd setup and optional PM2 or Docker deployments with persistent private storage. Oracle VM deployments can store Gemini, VU and Google Calendar secret values in [OCI Vault](docs/OCI-VAULT.md) while keeping only settings and secret references on the VM.
 
 To save a consistent SQLite snapshot while Maya is running, use `npm run backup-db`. It keeps the newest seven completed snapshots in `data/backups/`. These backups contain private group messages, tasks, and saved memories, so keep them private. Backups on the same disk do not protect against loss of the machine; off-machine backup automation is deferred.
 
