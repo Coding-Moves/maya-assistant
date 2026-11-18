@@ -11,6 +11,10 @@ const booleanFlag = (defaultValue: 'true' | 'false') =>
 const cronExpression = (defaultValue: string) =>
   z.string().trim().refine(cron.validate, 'must be a valid cron expression').default(defaultValue);
 
+const vaultSecretReference = z.string().trim()
+  .refine((value) => !value || /^ocid1\.vaultsecret\./u.test(value), 'must be an OCI Vault secret OCID')
+  .default('');
+
 const envSchema = z
   .object({
     BOT_NAME: z.string().trim().min(1).default('Maya'),
@@ -44,10 +48,8 @@ const envSchema = z
     WEEKLY_PLAN_CRON: cronExpression('0 20 * * 5'),
     VU_SYNC_CRON: cronExpression('0 6 * * *'),
     EXTRACT_INTERVAL_MIN: positiveInteger(10),
-    GEMINI_API_KEY: z
-      .string({ error: 'is required; add it to .env' })
-      .trim()
-      .min(1, 'is required; add it to .env'),
+    GEMINI_API_KEY: z.string().trim().default(''),
+    GEMINI_API_KEY_SECRET_OCID: vaultSecretReference,
     GEMINI_MODEL: z.string().trim().min(1).default('gemini-3.5-flash'),
     EXTRACT_BATCH_SIZE: z.coerce.number().int().min(1).max(50).default(50),
     ASK_CONTEXT_MESSAGES: positiveInteger(100),
@@ -57,11 +59,15 @@ const envSchema = z
     CALENDAR_SYNC: booleanFlag('false'),
     GOOGLE_CLIENT_ID: z.string().trim().default(''),
     GOOGLE_CLIENT_SECRET: z.string().trim().default(''),
+    GOOGLE_CLIENT_SECRET_SECRET_OCID: vaultSecretReference,
     GOOGLE_REFRESH_TOKEN: z.string().trim().default(''),
+    GOOGLE_REFRESH_TOKEN_SECRET_OCID: vaultSecretReference,
     GOOGLE_CALENDAR_ID: z.string().trim().min(1).default('primary'),
     VU_LMS_SYNC: booleanFlag('false'),
     VU_STUDENT_ID: z.string().trim().default(''),
+    VU_STUDENT_ID_SECRET_OCID: vaultSecretReference,
     VU_PASSWORD: z.string().default(''),
+    VU_PASSWORD_SECRET_OCID: vaultSecretReference,
     NFC_CMS_SYNC: booleanFlag('false'),
     NFC_SYNC_CRON: cronExpression('0 7 * * *'),
     NFC_STUDENT_ID_SECRET_OCID: z.string().trim().default(''),
@@ -72,6 +78,14 @@ const envSchema = z
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   })
   .superRefine((value, context) => {
+    const requireExactlyOneSecret = (valueName: string, direct: string, secretReference: string) => {
+      if (!direct && !secretReference) {
+        context.addIssue({ code: 'custom', path: [valueName], message: `requires ${valueName} or ${valueName}_SECRET_OCID` });
+      } else if (direct && secretReference) {
+        context.addIssue({ code: 'custom', path: [valueName], message: `cannot use ${valueName} and ${valueName}_SECRET_OCID together` });
+      }
+    };
+    requireExactlyOneSecret('GEMINI_API_KEY', value.GEMINI_API_KEY, value.GEMINI_API_KEY_SECRET_OCID);
     if (value.BOT_MODE === 'separate' && !value.OWNER_JID) {
       context.addIssue({
         code: 'custom',
@@ -79,11 +93,16 @@ const envSchema = z
         message: 'is required when BOT_MODE=separate',
       });
     }
-    if (value.CALENDAR_SYNC && (!value.GOOGLE_CLIENT_ID || !value.GOOGLE_CLIENT_SECRET || !value.GOOGLE_REFRESH_TOKEN)) {
-      context.addIssue({ code: 'custom', path: ['CALENDAR_SYNC'], message: 'requires GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN' });
+    if (value.CALENDAR_SYNC) {
+      if (!value.GOOGLE_CLIENT_ID) {
+        context.addIssue({ code: 'custom', path: ['CALENDAR_SYNC'], message: 'requires GOOGLE_CLIENT_ID' });
+      }
+      requireExactlyOneSecret('GOOGLE_CLIENT_SECRET', value.GOOGLE_CLIENT_SECRET, value.GOOGLE_CLIENT_SECRET_SECRET_OCID);
+      requireExactlyOneSecret('GOOGLE_REFRESH_TOKEN', value.GOOGLE_REFRESH_TOKEN, value.GOOGLE_REFRESH_TOKEN_SECRET_OCID);
     }
-    if (value.VU_LMS_SYNC && (!value.VU_STUDENT_ID || !value.VU_PASSWORD)) {
-      context.addIssue({ code: 'custom', path: ['VU_LMS_SYNC'], message: 'requires VU_STUDENT_ID and VU_PASSWORD' });
+    if (value.VU_LMS_SYNC) {
+      requireExactlyOneSecret('VU_STUDENT_ID', value.VU_STUDENT_ID, value.VU_STUDENT_ID_SECRET_OCID);
+      requireExactlyOneSecret('VU_PASSWORD', value.VU_PASSWORD, value.VU_PASSWORD_SECRET_OCID);
     }
     if (value.NFC_CMS_SYNC && (!value.NFC_STUDENT_ID_SECRET_OCID || !value.NFC_PASSWORD_SECRET_OCID)) {
       context.addIssue({ code: 'custom', path: ['NFC_CMS_SYNC'], message: 'requires NFC_STUDENT_ID_SECRET_OCID and NFC_PASSWORD_SECRET_OCID' });

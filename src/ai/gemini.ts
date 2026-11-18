@@ -2,9 +2,15 @@ import { ApiError, FunctionCallingConfigMode, GoogleGenAI,
   type Content, type FunctionDeclaration, type GenerateContentResponse } from '@google/genai';
 import { z } from 'zod';
 import { config } from '../config/env.js';
+import { geminiApiKey } from '../security/runtime-secrets.js';
 
-const ai = new GoogleGenAI({ apiKey: config.GEMINI_API_KEY });
+let ai: Promise<GoogleGenAI> | undefined;
 const maxRetries = 3;
+
+function gemini(): Promise<GoogleGenAI> {
+  ai ??= geminiApiKey().then((apiKey) => new GoogleGenAI({ apiKey }));
+  return ai;
+}
 
 function supportedJsonSchema(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(supportedJsonSchema);
@@ -77,8 +83,8 @@ export async function generateJson<T extends z.ZodType>(
   schema: T,
 ): Promise<z.output<T>> {
   const responseJsonSchema = supportedJsonSchema(z.toJSONSchema(schema));
-  const response = await withRetry(() =>
-    ai.models.generateContent({
+  const response = await withRetry(async () =>
+    (await gemini()).models.generateContent({
       model: config.GEMINI_MODEL,
       contents: prompt,
       config: { responseMimeType: 'application/json', responseJsonSchema, httpOptions: { timeout: 20_000 } },
@@ -95,7 +101,7 @@ export async function generateMediaJson<T extends z.ZodType>(
   schema: T,
 ): Promise<z.output<T>> {
   const responseJsonSchema = supportedJsonSchema(z.toJSONSchema(schema));
-  const response = await withRetry(() => ai.models.generateContent({
+  const response = await withRetry(async () => (await gemini()).models.generateContent({
     model: config.GEMINI_MODEL,
     contents: [
       { inlineData: { mimeType, data: bytes.toString('base64') } },
@@ -108,8 +114,8 @@ export async function generateMediaJson<T extends z.ZodType>(
 }
 
 export async function generateText(prompt: string): Promise<string> {
-  const response = await withRetry(() =>
-    ai.models.generateContent({ model: config.GEMINI_MODEL, contents: prompt,
+  const response = await withRetry(async () =>
+    (await gemini()).models.generateContent({ model: config.GEMINI_MODEL, contents: prompt,
       config: { httpOptions: { timeout: 20_000 } } }),
   );
   const text = response.text?.trim();
@@ -119,7 +125,7 @@ export async function generateText(prompt: string): Promise<string> {
 
 export async function generateOwnerToolTurn(contents: Content[], declarations: FunctionDeclaration[],
   signal: AbortSignal): Promise<GenerateContentResponse> {
-  return ai.models.generateContent({
+  return (await gemini()).models.generateContent({
     model: config.GEMINI_MODEL,
     contents,
     config: {
@@ -139,7 +145,7 @@ export async function generateStatusComment(
   media?: { bytes: Buffer; mimeType: string },
 ): Promise<string> {
   if (!media) return generateText(prompt);
-  const response = await withRetry(() => ai.models.generateContent({
+  const response = await withRetry(async () => (await gemini()).models.generateContent({
     model: config.GEMINI_MODEL,
     contents: [
       { inlineData: { mimeType: media.mimeType, data: media.bytes.toString('base64') } },
@@ -153,7 +159,7 @@ export async function generateStatusComment(
 }
 
 export async function readAcademicMedia(bytes: Buffer, mimeType: string): Promise<string> {
-  const response = await withRetry(() => ai.models.generateContent({
+  const response = await withRetry(async () => (await gemini()).models.generateContent({
     model: config.GEMINI_MODEL,
     contents: [
       { inlineData: { mimeType, data: bytes.toString('base64') } },

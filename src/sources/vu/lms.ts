@@ -1,5 +1,5 @@
 import { chromium, type Page } from 'playwright';
-import { config } from '../../config/env.js';
+import { vuCredentials, type VuCredentials } from '../../security/runtime-secrets.js';
 import { localDateTimeToUtc } from '../../utils/time.js';
 import type { VuItem } from './classic-todo.js';
 
@@ -73,9 +73,10 @@ export function parseClassicTodoTables(tables: ClassicTodoTables): VuItem[] {
   return items;
 }
 
-export async function fetchClassicTodoItems(): Promise<VuItem[]> {
-  if (!config.VU_STUDENT_ID || !config.VU_PASSWORD)
-    throw new Error('VU LMS credentials are not configured');
+export async function fetchClassicTodoItems(
+  readCredentials: () => Promise<VuCredentials> = vuCredentials,
+): Promise<VuItem[]> {
+  const credentials = await readCredentials();
 
   const browserEnv = Object.fromEntries(
     ['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'XDG_RUNTIME_DIR', 'XDG_CACHE_HOME', 'XDG_CONFIG_HOME']
@@ -89,8 +90,8 @@ export async function fetchClassicTodoItems(): Promise<VuItem[]> {
     await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     if (new URL(page.url()).origin !== new URL(LOGIN_URL).origin)
       throw new Error('VU LMS login redirected outside the official site');
-    await page.locator('#txtStudentID').fill(config.VU_STUDENT_ID);
-    await page.locator('#txtPassword').fill(config.VU_PASSWORD);
+    await page.locator('#txtStudentID').fill(credentials.studentId);
+    await page.locator('#txtPassword').fill(credentials.password);
     try {
       await page.waitForFunction(
         () => Boolean(document.querySelector<HTMLInputElement>('[name="g-recaptcha-response"]')?.value),

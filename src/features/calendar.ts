@@ -1,5 +1,6 @@
 import { config } from '../config/env.js';
 import { db } from '../db/client.js';
+import { googleCalendarCredentials } from '../security/runtime-secrets.js';
 import { logger } from '../utils/logger.js';
 import { localDateInTimezone } from '../utils/time.js';
 
@@ -26,14 +27,15 @@ class CalendarHttpError extends Error {
 
 async function accessToken(request: Request): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.value;
+  const credentials = await googleCalendarCredentials();
   const response = await request('https://oauth2.googleapis.com/token', {
     method: 'POST',
     signal: AbortSignal.timeout(10_000),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: config.GOOGLE_CLIENT_ID,
-      client_secret: config.GOOGLE_CLIENT_SECRET,
-      refresh_token: config.GOOGLE_REFRESH_TOKEN,
+      client_secret: credentials.clientSecret,
+      refresh_token: credentials.refreshToken,
       grant_type: 'refresh_token',
     }),
   });

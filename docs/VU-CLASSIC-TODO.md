@@ -11,13 +11,11 @@ sudo /opt/maya-assistant/node_modules/.bin/playwright install-deps chromium
 sudo -u maya -H /opt/maya-assistant/node_modules/.bin/playwright install chromium
 ```
 
-In the private `/opt/maya-assistant/.env`, set `VU_LMS_SYNC=true`, `VU_STUDENT_ID`, and `VU_PASSWORD`; keep that file readable only by Maya's service account. Do not put credentials in chat or Git. `VU_SYNC_CRON=0 6 * * *` checks at 6 AM in `TIMEZONE`; change the cron expression if needed. Restart `maya.service` after changing the file.
-
-If the password contains `#`, quote the whole value, for example `VU_PASSWORD="your#password"`. An unquoted `#` starts a dotenv comment and silently shortens the password Maya uses.
+For local development, set `VU_LMS_SYNC=true`, `VU_STUDENT_ID`, and `VU_PASSWORD` in a private ignored `.env`. For the Oracle VM, store the student ID and password as separate OCI Vault secrets and put only `VU_STUDENT_ID_SECRET_OCID` and `VU_PASSWORD_SECRET_OCID` in `/opt/maya-assistant/.env`. See the [OCI Vault guide](OCI-VAULT.md). Do not set a direct value and its secret OCID together; Maya stops at startup rather than silently using a plaintext fallback.
 
 Run `npm run sync-vu` on the VM once to check sign-in and import immediately, then send `tasks` privately to Maya. The daily job runs silently when successful and sends a private warning if it fails. Maya signs in through a normal browser and reads only the Assignments To Do and Quizzes To Do tables. She does not bypass CAPTCHA or other verification; if VU requires it or changes the page layout, the check fails without changing tasks. Review VU's current rules before enabling automated access. Change the private `.env` password whenever your LMS password changes.
 
-The browser session is discarded after each run. The ID and password stay in the VM's private `.env`; no cookies are saved. Missing rows never cancel tasks because a page may be incomplete. A changed title can create a second task because the stable key is type, course, and title.
+The browser session is discarded after each run. With the production Vault setup, the ID and password exist only in memory for that portal check; no cookies are saved. Missing rows never cancel tasks because a page may be incomplete. A changed title can create a second task because the stable key is type, course, and title.
 
 ## Manual CSV alternative
 
