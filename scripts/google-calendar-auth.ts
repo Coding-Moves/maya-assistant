@@ -5,7 +5,7 @@ import 'dotenv/config';
 
 const clientId = process.env.GOOGLE_CLIENT_ID;
 const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-if (!clientId || !clientSecret) throw new Error('Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env first');
+if (!clientId || !clientSecret) throw new Error('Set direct GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in this local .env first; this local OAuth helper does not write OCI Vault');
 
 const state = randomBytes(24).toString('hex');
 const verifier = randomBytes(48).toString('base64url');
@@ -79,4 +79,4 @@ try {
 } finally {
   rmSync(tempPath, { force: true });
 }
-console.log('Saved GOOGLE_REFRESH_TOKEN to .env. Keep this file private.');
+console.log('Saved GOOGLE_REFRESH_TOKEN to the local .env. Keep this file private; copy it into OCI Vault manually for a production Vault setup.');
