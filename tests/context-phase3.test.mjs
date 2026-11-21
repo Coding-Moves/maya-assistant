@@ -88,3 +88,15 @@ test('academic status questions include completed work instead of treating it as
   const task = context.evidence.find((item) => item.kind === 'task' && item.title === 'Completed report');
   assert.equal(task.status, 'done');
 });
+
+test('deadline questions prioritize open work over completed tasks with a matching title', () => {
+  for (let i = 0; i < 20; i++) {
+    const id = createTask({ type: 'assignment', subject: 'CS101', title: `Assignment archive ${i}`, dueAt: '2027-01-01T10:00:00.000Z' });
+    markDone(id);
+  }
+  createTask({ type: 'assignment', subject: 'CS101', title: 'Assignment due soon', dueAt: '2027-01-02T10:00:00.000Z' });
+  const context = JSON.parse(separateContext('When is my assignment due?'));
+  const tasks = context.evidence.filter((item) => item.kind === 'task');
+  assert.ok(tasks.some((item) => item.title === 'Assignment due soon' && item.status === 'open'));
+  assert.ok(tasks.every((item) => item.status !== 'done'));
+});

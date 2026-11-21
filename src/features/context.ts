@@ -111,7 +111,8 @@ export function separateContext(question: string, now = new Date(), replyToRef: 
       WHERE t.status IN ('open', 'done') OR (t.status = 'expired' AND t.updated_at >= ?)
       ORDER BY CASE t.status WHEN 'open' THEN 0 WHEN 'done' THEN 1 ELSE 2 END, t.due_at IS NULL, t.due_at, t.id LIMIT ?`)
       .all(new Date(now.getTime() - 14 * 24 * 60 * 60_000).toISOString(), 500);
-    const scored = rows.map((row) => {
+    const candidates = wantsAcademicStatus ? rows : rows.filter(({ status }) => status !== 'done');
+    const scored = candidates.map((row) => {
       const haystack = `${row.subject ?? ''} ${row.type} ${row.title}`.toLocaleLowerCase();
       const relevance = [...terms].filter((term) => term.length >= 2 && haystack.includes(term)).length;
       return { row, relevance };
