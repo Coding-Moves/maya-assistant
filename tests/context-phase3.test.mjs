@@ -14,6 +14,7 @@ const { setGroupPolicy } = await import('../src/db/repos/group-policies.ts');
 const { insertMessage } = await import('../src/db/repos/messages.ts');
 const { separateContext, rememberDialogue, recordOwnerReplyRef } = await import('../src/features/context.ts');
 const { createTask, markDone } = await import('../src/db/repos/tasks.ts');
+const { recordTaskObservation } = await import('../src/db/repos/task-observations.ts');
 migrate();
 after(() => db.close());
 
@@ -84,9 +85,13 @@ test('deadline context includes source and course while remaining bounded', () =
 test('academic status questions include completed work instead of treating it as pending', () => {
   const id = createTask({ type: 'assignment', subject: 'AI-312', title: 'Completed report', dueAt: '2027-02-03T10:00:00.000Z' });
   assert.equal(markDone(id), true);
+  recordTaskObservation({ taskId: id, source: 'owner-report', status: 'reported_complete',
+    dueAt: '2027-02-03T10:00:00.000Z', observedAt: '2027-01-20T10:00:00.000Z', evidenceKind: 'owner_report' });
   const context = JSON.parse(separateContext('What assignments have I completed?'));
   const task = context.evidence.find((item) => item.kind === 'task' && item.title === 'Completed report');
   assert.equal(task.status, 'done');
+  assert.ok(context.evidence.some((item) => item.kind === 'academic_observation' &&
+    item.title === 'Completed report' && item.evidenceKind === 'owner_report'));
 });
 
 test('deadline questions prioritize open work over completed tasks with a matching title', () => {

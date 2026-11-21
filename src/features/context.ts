@@ -125,7 +125,7 @@ export function separateContext(question: string, now = new Date(), replyToRef: 
       status: row.status, updatedAt: row.updatedAt });
   }
 
-  if (/\b(?:what changed|changes?|status)\b|بدل|حالت/iu.test(question)) {
+  if (wantsAcademicStatus) {
     const since = new Date(now.getTime() - 14 * 24 * 60 * 60_000).toISOString();
     for (const source of ['nfc-cms', 'vu-classic-todo', 'owner-report']) {
       for (const observation of recentTaskObservations(source, since).slice(-8)) add({
