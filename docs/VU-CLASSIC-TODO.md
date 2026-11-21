@@ -17,6 +17,8 @@ Run `npm run sync-vu` on the VM once to check sign-in and import immediately, th
 
 The browser session is discarded after each run. With the production Vault setup, the ID and password exist only in memory for that portal check; no cookies are saved. Missing rows never cancel tasks because a page may be incomplete. A changed title can create a second task because the stable key is type, course, and title.
 
+Classic To Do exposes deadlines and availability, not a reliable submission or grading state. Maya can therefore confirm an NFC portal submission automatically, but a VU completion reported in chat remains *owner-reported* unless VU later offers authoritative evidence. Maya never interprets a missing VU row or a passed deadline as completion.
+
 ## Manual CSV alternative
 
 This route does not need LMS credentials or Chromium.
