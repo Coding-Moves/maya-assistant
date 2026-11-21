@@ -2,7 +2,7 @@ import { config } from '../config/env.js';
 import { db } from '../db/client.js';
 import { joinedGroups } from '../db/repos/groups.js';
 import { listMemories, searchMemories } from '../db/repos/memories.js';
-import { joinedGroupMessageByExternalId, recentJoinedGroupMessages, searchJoinedGroupMessages } from '../db/repos/messages.js';
+import { joinedGroupAllowsRetrieval, joinedGroupMessageByExternalId, recentJoinedGroupMessages, searchJoinedGroupMessages } from '../db/repos/messages.js';
 import { listOwnerReminders } from '../db/repos/owner-reminders.js';
 import { activeTimetables, timetableForDay } from '../db/repos/timetables.js';
 import { lastCalendarReadAt, upcomingCalendarEvents } from './calendar-read.js';
@@ -118,16 +118,19 @@ export function separateContext(
   const items: Evidence[] = [];
   const add = (entry: Evidence) => appendEvidence(items, entry);
   if (quotedMessage) {
-    const stored = !quotedMessage.text && quotedMessage.remoteJid
+    const quotedGroupAllowed = !quotedMessage.remoteJid || !quotedMessage.remoteJid.endsWith('@g.us') ||
+      joinedGroupAllowsRetrieval(quotedMessage.remoteJid);
+    const stored = !quotedMessage.text && quotedMessage.remoteJid && quotedGroupAllowed
       ? joinedGroupMessageByExternalId(quotedMessage.remoteJid, quotedMessage.id)
       : undefined;
-    const text = quotedMessage.text ?? stored?.text ?? null;
+    const text = quotedGroupAllowed ? quotedMessage.text ?? stored?.text ?? null : null;
     add({
       kind: 'quoted_whatsapp_message',
       messageId: quotedMessage.id,
       messageKind: quotedMessage.kind,
-      source: quotedMessage.text ? 'whatsapp_reply_reference'
-        : stored ? 'whatsapp_reply_reference_stored'
+      source: !quotedGroupAllowed ? 'whatsapp_reply_reference_policy_blocked'
+        : quotedMessage.text ? 'whatsapp_reply_reference'
+          : stored ? 'whatsapp_reply_reference_stored'
           : quotedMessage.remoteJid ? 'whatsapp_reply_reference_unavailable'
             : 'whatsapp_reply_reference_unknown_chat',
       text: text ? safeText(text.slice(0, 2_000)) : null,

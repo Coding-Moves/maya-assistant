@@ -209,6 +209,14 @@ export function joinedGroupMessageByExternalId(chatId: string, externalId: strin
     LIMIT 1`).get(chatId, externalId);
 }
 
+/** A quoted inline payload may be used only if its originating group is active and retrieval is allowed. */
+export function joinedGroupAllowsRetrieval(chatId: string): boolean {
+  return Boolean(db.prepare<[string], { allowed: number }>(`SELECT 1 AS allowed FROM groups g
+    WHERE g.id = ? AND g.active = 1
+      AND NOT EXISTS (SELECT 1 FROM group_policies p WHERE p.group_id = g.id AND p.retrieval_enabled = 0)
+    LIMIT 1`).get(chatId)?.allowed);
+}
+
 export function searchJoinedGroupMessages(query: string, chatIds: readonly string[] = [], limit = 12): Message[] {
   const stop = new Set(['what', 'when', 'where', 'which', 'the', 'this', 'that', 'from', 'about', 'group', 'said', 'have', 'does', 'any', 'there', 'with', 'your', 'you', 'and']);
   const words = (query.normalize('NFKC').toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
