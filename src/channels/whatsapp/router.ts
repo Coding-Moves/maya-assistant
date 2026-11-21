@@ -8,7 +8,7 @@ import { handleOwnerText } from '../../features/commands.js';
 import { commentOnOwnerStatus } from '../../features/status.js';
 import { logger } from '../../utils/logger.js';
 import { isOwnerChat, verifyOwnerLid } from './identity.js';
-import { parseMessageText, quotedMessageId, unwrapMessageContent } from './parse.js';
+import { parseMessageText, quotedMessageReference, unwrapMessageContent } from './parse.js';
 import { markOwnerMessageRead, markOwnerStatusRead, sendToOwner } from './send.js';
 import { ownerInput } from './trigger.js';
 
@@ -93,9 +93,10 @@ export function attachWhatsAppRouter(
     }
     const work = async () => {
       void markOwnerMessageRead(message.key);
+      const quoted = quotedMessageReference(message.message);
       if (hasMedia) await handleOwnerMedia(message, sock);
       else if (input) await handleOwnerText(input, undefined, undefined, undefined, message.key.id ?? null,
-        'owner_text', { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt }, quotedMessageId(message.message));
+        'owner_text', { jid: message.key.remoteJid, alternateJid: message.key.remoteJidAlt }, quoted?.id ?? null, quoted);
     };
     if (config.BOT_MODE === 'separate') queuedOwnerMessages += 1;
     const reply = (config.BOT_MODE === 'separate' ? ownerChain.then(work) : work()).catch((error: unknown) => {

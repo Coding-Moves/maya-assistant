@@ -2,13 +2,14 @@ import { config } from '../config/env.js';
 import { db } from '../db/client.js';
 import { joinedGroups } from '../db/repos/groups.js';
 import { listMemories, searchMemories } from '../db/repos/memories.js';
-import { recentJoinedGroupMessages, searchJoinedGroupMessages } from '../db/repos/messages.js';
+import { joinedGroupAllowsRetrieval, joinedGroupMessageByExternalId, recentJoinedGroupMessages, searchJoinedGroupMessages } from '../db/repos/messages.js';
 import { listOwnerReminders } from '../db/repos/owner-reminders.js';
 import { activeTimetables, timetableForDay } from '../db/repos/timetables.js';
 import { lastCalendarReadAt, upcomingCalendarEvents } from './calendar-read.js';
 import { formatInTimezone, localDateInTimezone } from '../utils/time.js';
+import type { QuotedMessageReference } from '../channels/whatsapp/parse.js';
 
-interface Dialogue { question: string; answer: string; answerRef: string | null; createdAt: string }
+interface Dialogue { id: number; question: string; answer: string; answerRef: string | null; createdAt: string }
 type Evidence = Record<string, unknown>;
 const maxContextChars = 14_000;
 const dialogueMs = 48 * 60 * 60_000;
@@ -31,18 +32,35 @@ export function recordOwnerReplyRef(text: string, messageId: string | null | und
   }
 }
 
-function recentDialogue(now: Date, replyToRef: string | null = null): Dialogue[] {
+function recentDialogue(now: Date, replyToRef: string | null = null, limit = 3): Dialogue[] {
   if (!config.OWNER_JID) return [];
   const since = new Date(now.getTime() - dialogueMs).toISOString();
   const direct = replyToRef ? db.prepare<[string, string, string], Dialogue>(
-    `SELECT question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
+    `SELECT id, question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
      WHERE actor_jid = ? AND answer_ref = ? AND created_at >= ? ORDER BY id DESC LIMIT 1`,
   ).get(config.OWNER_JID, replyToRef, since) : undefined;
-  const recent = db.prepare<[string, string], Dialogue>(
-    `SELECT question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
-     WHERE actor_jid = ? AND created_at >= ? ORDER BY id DESC LIMIT 3`,
-  ).all(config.OWNER_JID, since).reverse();
-  return direct ? [direct, ...recent.filter(({ answerRef }) => answerRef !== direct.answerRef)].slice(0, 3) : recent;
+  const recent = db.prepare<[string, string, number], Dialogue>(
+    `SELECT id, question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
+     WHERE actor_jid = ? AND created_at >= ? ORDER BY id DESC LIMIT ?`,
+  ).all(config.OWNER_JID, since, limit).reverse();
+  return direct ? [direct, ...recent.filter(({ id }) => id !== direct.id)].slice(0, limit) : recent;
+}
+
+function searchDialogue(question: string, now: Date, excludedIds: readonly number[]): Dialogue[] {
+  if (!config.OWNER_JID) return [];
+  const ignored = new Set(['what', 'when', 'where', 'which', 'the', 'this', 'that', 'from', 'about', 'have', 'does', 'there', 'with', 'your', 'you', 'and', 'previous', 'last', 'one', 'option']);
+  const words = (question.normalize('NFKC').toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
+    .filter((word) => word.length >= 2 && !ignored.has(word)).slice(0, 8);
+  if (words.length === 0) return [];
+  const since = new Date(now.getTime() - dialogueMs).toISOString();
+  const expression = words.map((word) => `"${word}"`).join(' OR ');
+  const rows = db.prepare<[string, string, string, number], Dialogue>(
+    `SELECT d.id, d.question, d.answer, d.answer_ref AS answerRef, d.created_at AS createdAt
+     FROM owner_dialogue_fts JOIN owner_dialogue d ON d.id = owner_dialogue_fts.rowid
+     WHERE owner_dialogue_fts MATCH ? AND d.actor_jid = ? AND d.created_at >= ?
+     ORDER BY bm25(owner_dialogue_fts), d.created_at DESC LIMIT ?`,
+  ).all(expression, config.OWNER_JID, since, 4);
+  return rows.filter(({ id }) => !excludedIds.includes(id)).slice(0, 2);
 }
 
 export function rememberDialogue(question: string, answer: string, now = new Date()): void {
@@ -82,9 +100,15 @@ function appendEvidence(items: Evidence[], entry: Evidence): void {
   if (JSON.stringify([...items, entry]).length <= maxContextChars) items.push(entry);
 }
 
-export function separateContext(question: string, now = new Date(), replyToRef: string | null = null): string {
-  const dialogue = recentDialogue(now, replyToRef);
-  const referential = /\b(?:it|that|there|this|those|same|one)\b|یہ|وہ/iu.test(question);
+export function separateContext(
+  question: string,
+  now = new Date(),
+  replyToRef: string | null = null,
+  quotedMessage: QuotedMessageReference | null = null,
+): string {
+  const referential = /\b(?:it|that|there|this|those|same|one|previous|last|first|second|third)\b|یہ|وہ/iu.test(question);
+  const dialogue = recentDialogue(now, replyToRef, referential ? 6 : 3);
+  const relevantDialogue = searchDialogue(question, now, dialogue.map(({ id }) => id));
   const searchQuestion = referential && dialogue.length
     ? `${dialogue.at(-1)!.question} ${question}` : question;
   const groups = joinedGroups();
@@ -93,6 +117,26 @@ export function separateContext(question: string, now = new Date(), replyToRef: 
   const ambiguousGroup = groupIds.length > 1;
   const items: Evidence[] = [];
   const add = (entry: Evidence) => appendEvidence(items, entry);
+  if (quotedMessage) {
+    const quotedGroupAllowed = !quotedMessage.remoteJid || !quotedMessage.remoteJid.endsWith('@g.us') ||
+      joinedGroupAllowsRetrieval(quotedMessage.remoteJid);
+    const stored = !quotedMessage.text && quotedMessage.remoteJid && quotedGroupAllowed
+      ? joinedGroupMessageByExternalId(quotedMessage.remoteJid, quotedMessage.id)
+      : undefined;
+    const text = quotedGroupAllowed ? quotedMessage.text ?? stored?.text ?? null : null;
+    add({
+      kind: 'quoted_whatsapp_message',
+      messageId: quotedMessage.id,
+      messageKind: quotedMessage.kind,
+      source: !quotedGroupAllowed ? 'whatsapp_reply_reference_policy_blocked'
+        : quotedMessage.text ? 'whatsapp_reply_reference'
+          : stored ? 'whatsapp_reply_reference_stored'
+          : quotedMessage.remoteJid ? 'whatsapp_reply_reference_unavailable'
+            : 'whatsapp_reply_reference_unknown_chat',
+      text: text ? safeText(text.slice(0, 2_000)) : null,
+      available: Boolean(text),
+    });
+  }
   const terms = new Set((question.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []));
   const wantsDeadlines = /\b(?:quiz|quizzes|assignment|deadline|due|exam|task|work|submit|missed|next|upcoming|tomorrow|today|week)\b|کوئز|اسائنمنٹ/iu.test(question);
   const wantsCalendar = /\b(?:calendar|meeting|event|appointment)\b|کیلنڈر/iu.test(question);
@@ -167,6 +211,9 @@ export function separateContext(question: string, now = new Date(), replyToRef: 
       lastFailureAt: vu?.last_failure_at ?? null } : { enabled: false },
     calendarCacheReadAt: config.CALENDAR_SYNC ? lastCalendarReadAt() : null,
     recentOwnerConversation: dialogue.map(({ question: q, answer, createdAt }) => ({
+      question: q.slice(0, 300), answer: answer.slice(0, 300), at: createdAt,
+    })),
+    relevantOwnerConversation: relevantDialogue.map(({ question: q, answer, createdAt }) => ({
       question: q.slice(0, 300), answer: answer.slice(0, 300), at: createdAt,
     })),
     evidence: items,

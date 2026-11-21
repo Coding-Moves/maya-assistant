@@ -13,6 +13,7 @@ import { handleOwnerControlConfirmation, runOwnerAgent, type OwnerMessageIdentit
 import { isOwnerControlRequest } from './owner-tools.js';
 import { handleOwnerTaskUpdateConfirmation, stageOwnerTaskUpdate } from './owner-task-updates.js';
 import { pendingOwnerProposals } from '../db/repos/owner-actions.js';
+import type { QuotedMessageReference } from '../channels/whatsapp/parse.js';
 
 export async function handleOwnerText(
   text: string,
@@ -23,6 +24,7 @@ export async function handleOwnerText(
   inputKind: 'owner_text' | 'owner_voice' | 'media_description' = 'owner_text',
   identity: OwnerMessageIdentity = { jid: null },
   replyToRef: string | null = null,
+  quotedMessage: QuotedMessageReference | null = null,
 ): Promise<void> {
   const input = text.trim();
   if (!input) return;
@@ -36,7 +38,7 @@ export async function handleOwnerText(
         return;
       }
     }
-    await answer(input, undefined, undefined, undefined, undefined, replyToRef);
+    await answer(input, undefined, undefined, undefined, undefined, replyToRef, quotedMessage);
     return;
   }
 
@@ -169,5 +171,5 @@ export async function handleOwnerText(
     return;
   }
 
-  await answer(input, undefined, undefined, undefined, undefined, replyToRef);
+  await answer(input, undefined, undefined, undefined, undefined, replyToRef, quotedMessage);
 }

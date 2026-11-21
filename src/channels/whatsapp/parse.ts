@@ -1,5 +1,15 @@
 import type { WAMessageContent } from 'baileys';
 
+type ContextInfo = NonNullable<NonNullable<WAMessageContent['extendedTextMessage']>['contextInfo']>;
+
+export interface QuotedMessageReference {
+  id: string;
+  participant: string | null;
+  remoteJid: string | null;
+  text: string | null;
+  kind: 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'unknown';
+}
+
 export function unwrapMessageContent(
   message: WAMessageContent | null | undefined,
 ): WAMessageContent | null {
@@ -18,14 +28,44 @@ export function unwrapMessageContent(
   return content ?? null;
 }
 
-/** The WhatsApp message id being quoted by an owner reply, if any. */
-export function quotedMessageId(
+function quotedContext(
   message: WAMessageContent | null | undefined,
-): string | null {
+): ContextInfo | undefined {
   const content = unwrapMessageContent(message);
-  const context = content?.extendedTextMessage?.contextInfo ?? content?.imageMessage?.contextInfo ??
-    content?.videoMessage?.contextInfo ?? content?.documentMessage?.contextInfo ?? content?.audioMessage?.contextInfo;
-  return typeof context?.stanzaId === 'string' && context.stanzaId ? context.stanzaId : null;
+  return content?.extendedTextMessage?.contextInfo ?? content?.imageMessage?.contextInfo ??
+    content?.videoMessage?.contextInfo ?? content?.documentMessage?.contextInfo ?? content?.audioMessage?.contextInfo ?? undefined;
+}
+
+function quotedKind(message: WAMessageContent | null | undefined): QuotedMessageReference['kind'] {
+  const content = unwrapMessageContent(message);
+  if (content?.conversation || content?.extendedTextMessage?.text) return 'text';
+  if (content?.imageMessage) return 'image';
+  if (content?.videoMessage) return 'video';
+  if (content?.audioMessage) return 'audio';
+  if (content?.documentMessage) return 'document';
+  if (content?.stickerMessage) return 'sticker';
+  return 'unknown';
+}
+
+/** Exact quoted-message metadata supplied by WhatsApp, if the original is available. */
+export function quotedMessageReference(
+  message: WAMessageContent | null | undefined,
+): QuotedMessageReference | null {
+  const context = quotedContext(message);
+  if (!context || typeof context.stanzaId !== 'string' || !context.stanzaId) return null;
+  const quoted = context.quotedMessage as WAMessageContent | null | undefined;
+  return {
+    id: context.stanzaId,
+    participant: typeof context.participant === 'string' ? context.participant : null,
+    remoteJid: typeof context.remoteJid === 'string' ? context.remoteJid : null,
+    text: parseMessageText(quoted),
+    kind: quotedKind(quoted),
+  };
+}
+
+/** The WhatsApp message id being quoted by an owner reply, if any. */
+export function quotedMessageId(message: WAMessageContent | null | undefined): string | null {
+  return quotedMessageReference(message)?.id ?? null;
 }
 
 export function parseMessageText(

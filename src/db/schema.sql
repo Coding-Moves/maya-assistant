@@ -170,6 +170,24 @@ CREATE TABLE IF NOT EXISTS owner_dialogue (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_owner_dialogue_actor ON owner_dialogue(actor_jid, created_at DESC);
+CREATE VIRTUAL TABLE IF NOT EXISTS owner_dialogue_fts USING fts5(
+  question,
+  answer,
+  content='owner_dialogue',
+  content_rowid='id'
+);
+CREATE TRIGGER IF NOT EXISTS owner_dialogue_fts_insert AFTER INSERT ON owner_dialogue BEGIN
+  INSERT INTO owner_dialogue_fts(rowid, question, answer) VALUES (new.id, new.question, new.answer);
+END;
+CREATE TRIGGER IF NOT EXISTS owner_dialogue_fts_delete AFTER DELETE ON owner_dialogue BEGIN
+  INSERT INTO owner_dialogue_fts(owner_dialogue_fts, rowid, question, answer)
+    VALUES ('delete', old.id, old.question, old.answer);
+END;
+CREATE TRIGGER IF NOT EXISTS owner_dialogue_fts_update AFTER UPDATE OF question, answer ON owner_dialogue BEGIN
+  INSERT INTO owner_dialogue_fts(owner_dialogue_fts, rowid, question, answer)
+    VALUES ('delete', old.id, old.question, old.answer);
+  INSERT INTO owner_dialogue_fts(rowid, question, answer) VALUES (new.id, new.question, new.answer);
+END;
 
 CREATE TABLE IF NOT EXISTS source_sync_state (
   source TEXT PRIMARY KEY,
