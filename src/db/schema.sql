@@ -199,6 +199,20 @@ CREATE TABLE IF NOT EXISTS nfc_assignments (
 );
 CREATE INDEX IF NOT EXISTS idx_nfc_assignments_status ON nfc_assignments(portal_status, last_seen_at);
 
+-- Source observations are append-only evidence. A portal item disappearing is recorded as
+-- unavailable, never treated as proof that the owner completed it.
+CREATE TABLE IF NOT EXISTS task_observations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  source TEXT NOT NULL,
+  observed_status TEXT NOT NULL,
+  due_at TEXT,
+  observed_at TEXT NOT NULL,
+  evidence_kind TEXT NOT NULL,
+  UNIQUE(task_id, source, observed_status, due_at, evidence_kind, observed_at)
+);
+CREATE INDEX IF NOT EXISTS idx_task_observations_task ON task_observations(task_id, observed_at DESC);
+
 CREATE TABLE IF NOT EXISTS calendar_jobs (
   task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
   revision INTEGER NOT NULL DEFAULT 1

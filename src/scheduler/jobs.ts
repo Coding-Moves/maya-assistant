@@ -136,6 +136,10 @@ export function startJobs(
     try {
       const counts = await vu();
       logger.info({ ...counts }, 'VU Classic To Do sync completed');
+      if (counts.created || counts.updated) {
+        const parts = [counts.created ? `${counts.created} new` : '', counts.updated ? `${counts.updated} updated` : ''].filter(Boolean).join(' and ');
+        await sendToOwner(`I checked VU Classic To Do and found ${parts} academic item${counts.created + counts.updated === 1 ? '' : 's'}. I’ve updated your reminders.`);
+      }
     } catch (error) {
       logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'VU Classic To Do sync failed');
       await sendToOwner('I couldn’t update your VU quiz and assignment deadlines today. Please check Classic To Do directly; I’ll try again at the next scheduled check.');
@@ -149,6 +153,15 @@ export function startJobs(
     try {
       const counts = await nfc();
       logger.info({ ...counts }, 'NFC CMS assignment sync completed');
+      if (!counts.skipped && (counts.created || counts.statusChanged || counts.deadlineChanged || counts.missing)) {
+        const changes = [
+          counts.created ? `${counts.created} new assignment${counts.created === 1 ? '' : 's'}` : '',
+          counts.statusChanged ? `${counts.statusChanged} status change${counts.statusChanged === 1 ? '' : 's'}` : '',
+          counts.deadlineChanged ? `${counts.deadlineChanged} deadline change${counts.deadlineChanged === 1 ? '' : 's'}` : '',
+          counts.missing ? `${counts.missing} item${counts.missing === 1 ? '' : 's'} no longer listed` : '',
+        ].filter(Boolean).join(', ');
+        await sendToOwner(`I checked NFC CMS and found ${changes}. I kept missing items unresolved, so nothing was marked complete without portal evidence.`);
+      }
     } catch (error) {
       logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'NFC CMS assignment sync failed');
       await sendToOwner('I couldn’t update your NFC assignment deadlines today. I have not attempted any upload; I’ll try again at the next scheduled check.');

@@ -13,7 +13,7 @@ const { rememberGroup } = await import('../src/db/repos/groups.ts');
 const { setGroupPolicy } = await import('../src/db/repos/group-policies.ts');
 const { insertMessage } = await import('../src/db/repos/messages.ts');
 const { separateContext, rememberDialogue, recordOwnerReplyRef } = await import('../src/features/context.ts');
-const { createTask } = await import('../src/db/repos/tasks.ts');
+const { createTask, markDone } = await import('../src/db/repos/tasks.ts');
 migrate();
 after(() => db.close());
 
@@ -79,4 +79,12 @@ test('deadline context includes source and course while remaining bounded', () =
   assert.ok(tasks.some((item) => item.subject === 'CS79'));
   assert.ok(JSON.stringify(context).length < 16_000);
   process.stdout.write(`Phase 3 fixture metrics: retrievalPrecision=${retrievalPrecision.toFixed(2)}, retrievalRecall=${retrievalRecall.toFixed(2)}, evidence=${context.evidence.length}, bytes=${Buffer.byteLength(JSON.stringify(context))}, rssMB=${Math.round(process.memoryUsage().rss / 1_000_000)}\n`);
+});
+
+test('academic status questions include completed work instead of treating it as pending', () => {
+  const id = createTask({ type: 'assignment', subject: 'AI-312', title: 'Completed report', dueAt: '2027-02-03T10:00:00.000Z' });
+  assert.equal(markDone(id), true);
+  const context = JSON.parse(separateContext('What assignments have I completed?'));
+  const task = context.evidence.find((item) => item.kind === 'task' && item.title === 'Completed report');
+  assert.equal(task.status, 'done');
 });

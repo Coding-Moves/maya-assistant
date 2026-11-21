@@ -22,7 +22,7 @@ test('NFC sync imports an assignment and records source state without retaining 
     async (id) => id.includes('STUDENT') ? 'student@example.test' : 'private-password',
     async () => active,
   );
-  assert.deepEqual(result, { created: 1, updated: 0, unchanged: 0, skipped: false });
+  assert.deepEqual(result, { created: 1, updated: 0, unchanged: 0, statusChanged: 0, deadlineChanged: 0, missing: 0, skipped: false });
   assert.deepEqual(db.prepare('SELECT subject, title, status FROM tasks').get(), {
     subject: 'AI-312', title: 'Assignment 2', status: 'open',
   });
@@ -37,7 +37,7 @@ test('pausing NFC prevents Vault and portal access while preserving known assign
     async () => { throw new Error('Vault must not be called while paused'); },
     async () => { throw new Error('Portal must not be called while paused'); },
   );
-  assert.deepEqual(result, { created: 0, updated: 0, unchanged: 0, skipped: true });
+  assert.deepEqual(result, { created: 0, updated: 0, unchanged: 0, statusChanged: 0, deadlineChanged: 0, missing: 0, skipped: true });
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM nfc_assignments').get().n, 1);
   setUniversityCheckingPaused('nfc-cms', false);
 });
@@ -45,6 +45,22 @@ test('pausing NFC prevents Vault and portal access while preserving known assign
 test('a portal-reported submission stops future task reminders', async () => {
   await syncNfcAssignments(async () => 'ignored', async () => [{ ...active[0], status: 'submitted' }]);
   assert.equal(db.prepare('SELECT status FROM tasks').get().status, 'done');
+  assert.deepEqual(db.prepare(`SELECT observed_status AS status, evidence_kind AS evidenceKind
+    FROM task_observations WHERE source = 'nfc-cms' ORDER BY id DESC LIMIT 1`).get(), {
+    status: 'submitted', evidenceKind: 'portal',
+  });
+});
+
+test('a missing NFC listing stays unresolved instead of becoming completed', async () => {
+  const item = { ...active[0], externalId: '70', title: 'Still unresolved' };
+  await syncNfcAssignments(async () => 'ignored', async () => [item]);
+  const result = await syncNfcAssignments(async () => 'ignored', async () => []);
+  assert.equal(result.missing, 1);
+  assert.equal((await syncNfcAssignments(async () => 'ignored', async () => [])).missing, 0);
+  assert.equal(db.prepare("SELECT status FROM tasks WHERE title = 'Still unresolved'").get().status, 'open');
+  assert.deepEqual(db.prepare(`SELECT observed_status AS status, evidence_kind AS evidenceKind
+    FROM task_observations WHERE task_id = (SELECT id FROM tasks WHERE title = 'Still unresolved')
+    ORDER BY id DESC LIMIT 1`).get(), { status: 'missing', evidenceKind: 'missing_from_successful_listing' });
 });
 
 test('already expired portal assignments are stored without creating a reminder task', async () => {

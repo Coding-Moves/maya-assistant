@@ -27,6 +27,10 @@ test('only open task can be completed naturally in English', async () => {
   await handleOwnerText("I've done it", send, ask);
   assert.match(replies.at(-1), /ticked off Chapter 1 quiz/);
   assert.equal(openTasks().some((task) => task.id === id), false);
+  assert.deepEqual(db.prepare(`SELECT source, observed_status AS status, evidence_kind AS evidenceKind
+    FROM task_observations WHERE task_id = ? ORDER BY id DESC LIMIT 1`).get(id), {
+    source: 'owner-report', status: 'reported_complete', evidenceKind: 'owner_report',
+  });
   assert.deepEqual(questions, []);
 });
 

@@ -1,6 +1,7 @@
 import { config } from '../config/env.js';
 import { db } from '../db/client.js';
 import { markDone, openTasks, recentExpiredTasks, type Task } from '../db/repos/tasks.js';
+import { recordTaskObservation } from '../db/repos/task-observations.js';
 import { formatTaskDue } from '../utils/time.js';
 
 const discussionMs = 10 * 60 * 1000;
@@ -130,5 +131,8 @@ export function handleNaturalDone(text: string): string | null {
   }
   const task = matches[0]!;
   clearCompletionContext();
-  return markDone(task.id) ? reply(language, 'done', label(task)) : reply(language, 'missing', label(task));
+  if (!markDone(task.id)) return reply(language, 'missing', label(task));
+  recordTaskObservation({ taskId: task.id, source: 'owner-report', status: 'reported_complete',
+    dueAt: task.dueAt, observedAt: new Date(now).toISOString(), evidenceKind: 'owner_report' });
+  return reply(language, 'done', label(task));
 }

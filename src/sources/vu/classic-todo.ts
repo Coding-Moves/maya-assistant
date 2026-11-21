@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { db } from '../../db/client.js';
 import { createTask } from '../../db/repos/tasks.js';
+import { recordTaskObservation } from '../../db/repos/task-observations.js';
 import { localDateTimeToUtc } from '../../utils/time.js';
 import type { Source } from '../source.js';
 
@@ -78,6 +79,8 @@ function upsert(item: VuItem): 'created' | 'updated' | 'unchanged' {
   if (!existing) {
     const id = createTask({ type: item.kind, subject: item.course, title: item.title, dueAt: item.dueAt, duePrecision: item.duePrecision });
     db.prepare("INSERT INTO source_tasks (source, external_id, task_id) VALUES ('vu-classic-todo', ?, ?)").run(item.externalId, id);
+    recordTaskObservation({ taskId: id, source: 'vu-classic-todo', status: 'available', dueAt: item.dueAt,
+      observedAt: new Date().toISOString(), evidenceKind: 'portal' });
     return 'created';
   }
   if (existing.status === 'expired' && item.dueAt > new Date().toISOString()) {
@@ -85,6 +88,8 @@ function upsert(item: VuItem): 'created' | 'updated' | 'unchanged' {
       reminded_evening = 0, reminded_morning = 0,
       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND status = 'expired'`)
       .run(item.course, item.kind, item.title, item.dueAt, item.duePrecision, existing.id);
+    recordTaskObservation({ taskId: existing.id, source: 'vu-classic-todo', status: 'available', dueAt: item.dueAt,
+      observedAt: new Date().toISOString(), evidenceKind: 'portal' });
     return 'updated';
   }
   if (existing.status !== 'open') return 'unchanged';
@@ -97,6 +102,8 @@ function upsert(item: VuItem): 'created' | 'updated' | 'unchanged' {
       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
     WHERE id = ? AND status = 'open'
   `).run(item.course, item.kind, item.title, item.dueAt, item.duePrecision, item.dueAt, item.dueAt, existing.id);
+  recordTaskObservation({ taskId: existing.id, source: 'vu-classic-todo', status: 'available', dueAt: item.dueAt,
+    observedAt: new Date().toISOString(), evidenceKind: 'portal' });
   return 'updated';
 }
 
