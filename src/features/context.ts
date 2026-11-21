@@ -7,6 +7,7 @@ import { listOwnerReminders } from '../db/repos/owner-reminders.js';
 import { activeTimetables, timetableForDay } from '../db/repos/timetables.js';
 import { lastCalendarReadAt, upcomingCalendarEvents } from './calendar-read.js';
 import { formatInTimezone, localDateInTimezone } from '../utils/time.js';
+import type { QuotedMessageReference } from '../channels/whatsapp/parse.js';
 
 interface Dialogue { question: string; answer: string; answerRef: string | null; createdAt: string }
 type Evidence = Record<string, unknown>;
@@ -82,7 +83,12 @@ function appendEvidence(items: Evidence[], entry: Evidence): void {
   if (JSON.stringify([...items, entry]).length <= maxContextChars) items.push(entry);
 }
 
-export function separateContext(question: string, now = new Date(), replyToRef: string | null = null): string {
+export function separateContext(
+  question: string,
+  now = new Date(),
+  replyToRef: string | null = null,
+  quotedMessage: QuotedMessageReference | null = null,
+): string {
   const dialogue = recentDialogue(now, replyToRef);
   const referential = /\b(?:it|that|there|this|those|same|one)\b|یہ|وہ/iu.test(question);
   const searchQuestion = referential && dialogue.length
@@ -93,6 +99,14 @@ export function separateContext(question: string, now = new Date(), replyToRef: 
   const ambiguousGroup = groupIds.length > 1;
   const items: Evidence[] = [];
   const add = (entry: Evidence) => appendEvidence(items, entry);
+  if (quotedMessage) add({
+    kind: 'quoted_whatsapp_message',
+    messageId: quotedMessage.id,
+    messageKind: quotedMessage.kind,
+    source: quotedMessage.remoteJid ? 'whatsapp_reply_reference' : 'whatsapp_reply_reference_unknown_chat',
+    text: quotedMessage.text ? safeText(quotedMessage.text.slice(0, 2_000)) : null,
+    available: Boolean(quotedMessage.text),
+  });
   const terms = new Set((question.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []));
   const wantsDeadlines = /\b(?:quiz|quizzes|assignment|deadline|due|exam|task|work|submit|missed|next|upcoming|tomorrow|today|week)\b|کوئز|اسائنمنٹ/iu.test(question);
   const wantsCalendar = /\b(?:calendar|meeting|event|appointment)\b|کیلنڈر/iu.test(question);

@@ -70,6 +70,25 @@ test('a WhatsApp reply reference brings the exact earlier turn into the bounded 
   assert.equal(context.recentOwnerConversation[0].answer, 'The exam room is Hall C.');
 });
 
+test('a quoted WhatsApp message is evidence, while an unreadable quoted attachment stays unavailable', () => {
+  const context = JSON.parse(separateContext('What should I reply to this?', new Date(), null, {
+    id: 'quoted-group-message', participant: 'friend@s.whatsapp.net', remoteJid: 'study@g.us',
+    text: 'The MTH1304 quiz is now on Monday.', kind: 'text',
+  }));
+  assert.deepEqual(context.evidence[0], {
+    kind: 'quoted_whatsapp_message', messageId: 'quoted-group-message', messageKind: 'text',
+    source: 'whatsapp_reply_reference', text: 'The MTH1304 quiz is now on Monday.', available: true,
+  });
+
+  const unavailable = JSON.parse(separateContext('What is in this?', new Date(), null, {
+    id: 'quoted-audio', participant: null, remoteJid: null, text: null, kind: 'audio',
+  }));
+  assert.deepEqual(unavailable.evidence[0], {
+    kind: 'quoted_whatsapp_message', messageId: 'quoted-audio', messageKind: 'audio',
+    source: 'whatsapp_reply_reference_unknown_chat', text: null, available: false,
+  });
+});
+
 test('deadline context includes source and course while remaining bounded', () => {
   for (let i = 0; i < 80; i++) createTask({ type: 'quiz', subject: `CS${i}`, title: `Quiz ${i}`,
     dueAt: '2027-02-01T09:00:00.000Z' });

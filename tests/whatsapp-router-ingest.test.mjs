@@ -10,7 +10,7 @@ process.env.GROUP_ALLOWLIST = 'allowed@g.us';
 const { config } = await import('../src/config/env.ts');
 const { db } = await import('../src/db/client.ts');
 const { migrate } = await import('../src/db/migrate.ts');
-const { parseMessageText } = await import('../src/channels/whatsapp/parse.ts');
+const { parseMessageText, quotedMessageReference } = await import('../src/channels/whatsapp/parse.ts');
 const { attachWhatsAppRouter } =
   await import('../src/channels/whatsapp/router.ts');
 const { normalizeGroupMessage } = await import('../src/features/ingest.ts');
@@ -50,6 +50,27 @@ test('extracts plain text and captions through ephemeral and view-once wrappers'
   );
   assert.equal(parseMessageText({ conversation: '   ' }), null);
   assert.equal(parseMessageText({ stickerMessage: {} }), null);
+});
+
+test('keeps an exact WhatsApp quote as bounded content rather than guessing an attachment', () => {
+  const quote = quotedMessageReference({
+    extendedTextMessage: {
+      text: 'What should I reply to this?',
+      contextInfo: {
+        stanzaId: 'quoted-1', remoteJid: 'study@g.us', participant: 'friend@s.whatsapp.net',
+        quotedMessage: { imageMessage: { caption: 'Quiz moved to Monday' } },
+      },
+    },
+  });
+  assert.deepEqual(quote, {
+    id: 'quoted-1', remoteJid: 'study@g.us', participant: 'friend@s.whatsapp.net',
+    text: 'Quiz moved to Monday', kind: 'image',
+  });
+  assert.deepEqual(quotedMessageReference({
+    extendedTextMessage: { contextInfo: { stanzaId: 'quoted-audio', quotedMessage: { audioMessage: {} } } },
+  }), {
+    id: 'quoted-audio', remoteJid: null, participant: null, text: null, kind: 'audio',
+  });
 });
 
 test('source callback receives a normalized allowlisted message only', () => {
