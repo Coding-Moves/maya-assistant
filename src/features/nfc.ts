@@ -2,15 +2,17 @@ import { config } from '../config/env.js';
 import { db } from '../db/client.js';
 import { universityCheckingPaused } from '../db/repos/source-controls.js';
 import { readOciVaultSecret } from '../security/oci-vault.js';
-import { upsertNfcAssignments } from '../sources/nfc/assignments.js';
+import { upsertNfcAssignments, type NfcReconciliationCounts } from '../sources/nfc/assignments.js';
 import { fetchNfcAssignments, type NfcCredentials } from '../sources/nfc/lms.js';
 
 export async function syncNfcAssignments(
   readSecret: typeof readOciVaultSecret = readOciVaultSecret,
   fetchAssignments: typeof fetchNfcAssignments = fetchNfcAssignments,
   apply: typeof upsertNfcAssignments = upsertNfcAssignments,
-): Promise<{ created: number; updated: number; unchanged: number; skipped: boolean }> {
-  if (universityCheckingPaused('nfc-cms')) return { created: 0, updated: 0, unchanged: 0, skipped: true };
+): Promise<NfcReconciliationCounts & { skipped: boolean }> {
+  if (universityCheckingPaused('nfc-cms')) return {
+    created: 0, updated: 0, unchanged: 0, statusChanged: 0, deadlineChanged: 0, missing: 0, skipped: true,
+  };
   try {
     const credentials: NfcCredentials = {
       studentId: await readSecret(config.NFC_STUDENT_ID_SECRET_OCID),

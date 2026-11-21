@@ -5,6 +5,7 @@ import { listMemories, searchMemories } from '../db/repos/memories.js';
 import { joinedGroupAllowsRetrieval, joinedGroupMessageByExternalId, recentJoinedGroupMessages, searchJoinedGroupMessages } from '../db/repos/messages.js';
 import { listOwnerReminders } from '../db/repos/owner-reminders.js';
 import { activeTimetables, timetableForDay } from '../db/repos/timetables.js';
+import { recentTaskObservations } from '../db/repos/task-observations.js';
 import { lastCalendarReadAt, upcomingCalendarEvents } from './calendar-read.js';
 import { formatInTimezone, localDateInTimezone } from '../utils/time.js';
 import type { QuotedMessageReference } from '../channels/whatsapp/parse.js';
@@ -139,21 +140,23 @@ export function separateContext(
   }
   const terms = new Set((question.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []));
   const wantsDeadlines = /\b(?:quiz|quizzes|assignment|deadline|due|exam|task|work|submit|missed|next|upcoming|tomorrow|today|week)\b|کوئز|اسائنمنٹ/iu.test(question);
+  const wantsAcademicStatus = /\b(?:complete(?:d)?|submitted|pending|still due|what changed|changes?|status)\b|جمع|مکمل|باقی/iu.test(question);
   const wantsCalendar = /\b(?:calendar|meeting|event|appointment)\b|کیلنڈر/iu.test(question);
   const wantsTimetable = /\b(?:timetable|time table|class|classes|schedule|lecture)\b|ٹائم\s*ٹیبل|کلاس/iu.test(question);
   const wantsMemory = /\b(?:remember|memory|memories|saved|prefer|know about me)\b|یاد/iu.test(question);
   const wantsReminder = /\b(?:reminder|remind|alert)\b|یاد\s*دل/iu.test(question);
 
-  if (wantsDeadlines) {
+  if (wantsDeadlines || wantsAcademicStatus) {
     const rows = db.prepare<[string, number], { id: number; subject: string | null; type: string; title: string;
       details: string | null; dueAt: string | null; duePrecision: string; status: string; updatedAt: string;
       source: string | null }>(`SELECT t.id, t.subject, t.type, t.title, t.details,
       t.due_at AS dueAt, t.due_precision AS duePrecision, t.status, t.updated_at AS updatedAt,
       s.source FROM tasks t LEFT JOIN source_tasks s ON s.task_id = t.id
-      WHERE t.status = 'open' OR (t.status = 'expired' AND t.updated_at >= ?)
-      ORDER BY CASE WHEN t.status = 'open' THEN 0 ELSE 1 END, t.due_at IS NULL, t.due_at, t.id LIMIT ?`)
-      .all(new Date(now.getTime() - 14 * 24 * 60 * 60_000).toISOString(), 80);
-    const scored = rows.map((row) => {
+      WHERE t.status IN ('open', 'done') OR (t.status = 'expired' AND t.updated_at >= ?)
+      ORDER BY CASE t.status WHEN 'open' THEN 0 WHEN 'done' THEN 1 ELSE 2 END, t.due_at IS NULL, t.due_at, t.id LIMIT ?`)
+      .all(new Date(now.getTime() - 14 * 24 * 60 * 60_000).toISOString(), 500);
+    const candidates = wantsAcademicStatus ? rows : rows.filter(({ status }) => status !== 'done');
+    const scored = candidates.map((row) => {
       const haystack = `${row.subject ?? ''} ${row.type} ${row.title}`.toLocaleLowerCase();
       const relevance = [...terms].filter((term) => term.length >= 2 && haystack.includes(term)).length;
       return { row, relevance };
@@ -164,6 +167,17 @@ export function separateContext(
       details: row.details ? safeText(row.details.slice(0, 220)) : null,
       dueAt: row.dueAt, duePrecision: row.duePrecision,
       status: row.status, updatedAt: row.updatedAt });
+  }
+
+  if (wantsAcademicStatus) {
+    const since = new Date(now.getTime() - 14 * 24 * 60 * 60_000).toISOString();
+    for (const source of ['nfc-cms', 'vu-classic-todo', 'owner-report']) {
+      for (const observation of recentTaskObservations(source, since).slice(-8)) add({
+        kind: 'academic_observation', source, title: observation.title, subject: observation.subject,
+        status: observation.status, dueAt: observation.dueAt, observedAt: observation.observedAt,
+        evidenceKind: observation.evidenceKind,
+      });
+    }
   }
 
   const memories = wantsMemory && /\b(?:all|list|what.*remember)\b/iu.test(question)
@@ -200,15 +214,19 @@ export function separateContext(
     id: message.id, at: message.sentAt, author: message.senderName,
     text: safeText(message.text.slice(0, 500)) });
 
-  const vu = db.prepare<[string], { last_success_at: string | null; last_failure_at: string | null }>(
+  const sourceState = (source: string) => db.prepare<[string], { last_success_at: string | null; last_failure_at: string | null }>(
     'SELECT last_success_at, last_failure_at FROM source_sync_state WHERE source = ?',
-  ).get('vu-classic-todo');
+  ).get(source);
+  const vu = sourceState('vu-classic-todo');
+  const nfc = sourceState('nfc-cms');
   return JSON.stringify({
     nowUtc: now.toISOString(), nowLocal: formatInTimezone(now), timezone: config.TIMEZONE,
     selectedGroupNames: explicitGroup ? groups.filter(({ id }) => groupIds.includes(id)).map(({ name }) => name) : [],
     groupSelectionAmbiguous: ambiguousGroup,
     vuSync: config.VU_LMS_SYNC ? { schedule: config.VU_SYNC_CRON, lastSuccessAt: vu?.last_success_at ?? null,
       lastFailureAt: vu?.last_failure_at ?? null } : { enabled: false },
+    nfcSync: config.NFC_CMS_SYNC ? { schedule: config.NFC_SYNC_CRON, lastSuccessAt: nfc?.last_success_at ?? null,
+      lastFailureAt: nfc?.last_failure_at ?? null } : { enabled: false },
     calendarCacheReadAt: config.CALENDAR_SYNC ? lastCalendarReadAt() : null,
     recentOwnerConversation: dialogue.map(({ question: q, answer, createdAt }) => ({
       question: q.slice(0, 300), answer: answer.slice(0, 300), at: createdAt,

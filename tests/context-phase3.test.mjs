@@ -13,7 +13,8 @@ const { rememberGroup } = await import('../src/db/repos/groups.ts');
 const { setGroupPolicy } = await import('../src/db/repos/group-policies.ts');
 const { insertMessage } = await import('../src/db/repos/messages.ts');
 const { separateContext, rememberDialogue, recordOwnerReplyRef } = await import('../src/features/context.ts');
-const { createTask } = await import('../src/db/repos/tasks.ts');
+const { createTask, markDone } = await import('../src/db/repos/tasks.ts');
+const { recordTaskObservation } = await import('../src/db/repos/task-observations.ts');
 migrate();
 after(() => db.close());
 
@@ -136,4 +137,28 @@ test('deadline context includes source and course while remaining bounded', () =
   assert.ok(tasks.some((item) => item.subject === 'CS79'));
   assert.ok(JSON.stringify(context).length < 16_000);
   process.stdout.write(`Phase 3 fixture metrics: retrievalPrecision=${retrievalPrecision.toFixed(2)}, retrievalRecall=${retrievalRecall.toFixed(2)}, evidence=${context.evidence.length}, bytes=${Buffer.byteLength(JSON.stringify(context))}, rssMB=${Math.round(process.memoryUsage().rss / 1_000_000)}\n`);
+});
+
+test('academic status questions include completed work instead of treating it as pending', () => {
+  const id = createTask({ type: 'assignment', subject: 'AI-312', title: 'Completed report', dueAt: '2027-02-03T10:00:00.000Z' });
+  assert.equal(markDone(id), true);
+  recordTaskObservation({ taskId: id, source: 'owner-report', status: 'reported_complete',
+    dueAt: '2027-02-03T10:00:00.000Z', observedAt: '2027-01-20T10:00:00.000Z', evidenceKind: 'owner_report' });
+  const context = JSON.parse(separateContext('What assignments have I completed?'));
+  const task = context.evidence.find((item) => item.kind === 'task' && item.title === 'Completed report');
+  assert.equal(task.status, 'done');
+  assert.ok(context.evidence.some((item) => item.kind === 'academic_observation' &&
+    item.title === 'Completed report' && item.evidenceKind === 'owner_report'));
+});
+
+test('deadline questions prioritize open work over completed tasks with a matching title', () => {
+  for (let i = 0; i < 20; i++) {
+    const id = createTask({ type: 'assignment', subject: 'CS101', title: `Assignment archive ${i}`, dueAt: '2027-01-01T10:00:00.000Z' });
+    markDone(id);
+  }
+  createTask({ type: 'assignment', subject: 'CS101', title: 'Assignment due soon', dueAt: '2027-01-02T10:00:00.000Z' });
+  const context = JSON.parse(separateContext('When is my assignment due?'));
+  const tasks = context.evidence.filter((item) => item.kind === 'task');
+  assert.ok(tasks.some((item) => item.title === 'Assignment due soon' && item.status === 'open'));
+  assert.ok(tasks.every((item) => item.status !== 'done'));
 });

@@ -8,6 +8,8 @@ This optional integration reads the **Assignments** page in the owner's own NFC-
 - reads the assignment list once per scheduled check;
 - creates or updates Maya tasks from the portal's stable assignment ID;
 - stops reminders when the portal says an assignment is submitted, under review, graded or expired;
+- stores an append-only portal observation when a status or deadline changes, so Maya can explain what she last saw;
+- records an item that disappears from a successful listing as *missing from the listing*, not submitted or completed.
 - fails closed if the login flow, assignment-table shape, deadline format or status labels change.
 
 The browser keeps no saved CMS cookies. It is closed at the end of every check. A failure does not delete tasks or make Maya guess.

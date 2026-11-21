@@ -2,6 +2,7 @@ import { sendToOwner } from '../channels/whatsapp/send.js';
 import { config } from '../config/env.js';
 import { joinedGroups } from '../db/repos/groups.js';
 import { completableTask, markDone, openTasks } from '../db/repos/tasks.js';
+import { recordTaskObservation } from '../db/repos/task-observations.js';
 import { runJob } from '../scheduler/jobs.js';
 import { formatTaskDue } from '../utils/time.js';
 import { ask } from './ask.js';
@@ -138,6 +139,10 @@ export async function handleOwnerText(
     }
     const task = Number.isSafeInteger(id) ? completableTask(id) : undefined;
     const done = task ? markDone(id) : false;
+    if (done && task && config.BOT_MODE === 'separate') {
+      recordTaskObservation({ taskId: task.id, source: 'owner-report', status: 'reported_complete',
+        dueAt: task.dueAt, observedAt: new Date().toISOString(), evidenceKind: 'owner_report' });
+    }
     await send(config.BOT_MODE === 'separate'
       ? done && task
         ? `Done! I've ticked off ${task.subject ? `${task.subject} — ` : ''}${task.title} for you 🌿`
