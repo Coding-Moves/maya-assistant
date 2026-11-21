@@ -193,6 +193,22 @@ export function recentJoinedGroupMessages(chatIds: readonly string[], limit: num
   return rows.reverse();
 }
 
+/** Finds one stored group message only when both its WhatsApp chat and ID match. */
+export function joinedGroupMessageByExternalId(chatId: string, externalId: string): Message | undefined {
+  return db.prepare<[string, string], Message>(`SELECT messages.id, messages.source,
+    messages.external_id AS externalId, messages.chat_id AS chatId,
+    messages.chat_name AS chatName, messages.sender_name AS senderName, messages.text,
+    messages.sent_at AS sentAt, messages.processed, messages.extract_attempts AS extractAttempts,
+    messages.failure_batch_id AS failureBatchId FROM messages
+    JOIN groups g ON g.id = messages.chat_id AND g.active = 1
+    WHERE messages.source = 'whatsapp' AND messages.chat_id = ? AND messages.external_id = ?
+      AND messages.text <> ''
+      AND NOT EXISTS (SELECT 1 FROM media_jobs WHERE media_jobs.message_id = messages.id)
+      AND NOT EXISTS (SELECT 1 FROM group_policies p WHERE p.group_id = messages.chat_id
+        AND p.retrieval_enabled = 0)
+    LIMIT 1`).get(chatId, externalId);
+}
+
 export function searchJoinedGroupMessages(query: string, chatIds: readonly string[] = [], limit = 12): Message[] {
   const stop = new Set(['what', 'when', 'where', 'which', 'the', 'this', 'that', 'from', 'about', 'group', 'said', 'have', 'does', 'any', 'there', 'with', 'your', 'you', 'and']);
   const words = (query.normalize('NFKC').toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])

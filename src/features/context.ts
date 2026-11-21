@@ -2,7 +2,7 @@ import { config } from '../config/env.js';
 import { db } from '../db/client.js';
 import { joinedGroups } from '../db/repos/groups.js';
 import { listMemories, searchMemories } from '../db/repos/memories.js';
-import { recentJoinedGroupMessages, searchJoinedGroupMessages } from '../db/repos/messages.js';
+import { joinedGroupMessageByExternalId, recentJoinedGroupMessages, searchJoinedGroupMessages } from '../db/repos/messages.js';
 import { listOwnerReminders } from '../db/repos/owner-reminders.js';
 import { activeTimetables, timetableForDay } from '../db/repos/timetables.js';
 import { lastCalendarReadAt, upcomingCalendarEvents } from './calendar-read.js';
@@ -99,14 +99,23 @@ export function separateContext(
   const ambiguousGroup = groupIds.length > 1;
   const items: Evidence[] = [];
   const add = (entry: Evidence) => appendEvidence(items, entry);
-  if (quotedMessage) add({
-    kind: 'quoted_whatsapp_message',
-    messageId: quotedMessage.id,
-    messageKind: quotedMessage.kind,
-    source: quotedMessage.remoteJid ? 'whatsapp_reply_reference' : 'whatsapp_reply_reference_unknown_chat',
-    text: quotedMessage.text ? safeText(quotedMessage.text.slice(0, 2_000)) : null,
-    available: Boolean(quotedMessage.text),
-  });
+  if (quotedMessage) {
+    const stored = !quotedMessage.text && quotedMessage.remoteJid
+      ? joinedGroupMessageByExternalId(quotedMessage.remoteJid, quotedMessage.id)
+      : undefined;
+    const text = quotedMessage.text ?? stored?.text ?? null;
+    add({
+      kind: 'quoted_whatsapp_message',
+      messageId: quotedMessage.id,
+      messageKind: quotedMessage.kind,
+      source: quotedMessage.text ? 'whatsapp_reply_reference'
+        : stored ? 'whatsapp_reply_reference_stored'
+          : quotedMessage.remoteJid ? 'whatsapp_reply_reference_unavailable'
+            : 'whatsapp_reply_reference_unknown_chat',
+      text: text ? safeText(text.slice(0, 2_000)) : null,
+      available: Boolean(text),
+    });
+  }
   const terms = new Set((question.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []));
   const wantsDeadlines = /\b(?:quiz|quizzes|assignment|deadline|due|exam|task|work|submit|missed|next|upcoming|tomorrow|today|week)\b|کوئز|اسائنمنٹ/iu.test(question);
   const wantsCalendar = /\b(?:calendar|meeting|event|appointment)\b|کیلنڈر/iu.test(question);

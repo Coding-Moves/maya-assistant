@@ -89,6 +89,19 @@ test('a quoted WhatsApp message is evidence, while an unreadable quoted attachme
   });
 });
 
+test('a quote ID is retrieved only from its exact stored group', () => {
+  add('study@g.us', 'shared-quote-id', 'Study-group deadline is Monday');
+  add('family@g.us', 'shared-quote-id', 'Family dinner is Monday');
+  const context = JSON.parse(separateContext('What should I reply?', new Date(), null, {
+    id: 'shared-quote-id', participant: null, remoteJid: 'study@g.us', text: null, kind: 'text',
+  }));
+  assert.deepEqual(context.evidence[0], {
+    kind: 'quoted_whatsapp_message', messageId: 'shared-quote-id', messageKind: 'text',
+    source: 'whatsapp_reply_reference_stored', text: 'Study-group deadline is Monday', available: true,
+  });
+  assert.ok(!JSON.stringify(context).includes('Family dinner'));
+});
+
 test('deadline context includes source and course while remaining bounded', () => {
   for (let i = 0; i < 80; i++) createTask({ type: 'quiz', subject: `CS${i}`, title: `Quiz ${i}`,
     dueAt: '2027-02-01T09:00:00.000Z' });
