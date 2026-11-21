@@ -102,6 +102,18 @@ test('a quote ID is retrieved only from its exact stored group', () => {
   assert.ok(!JSON.stringify(context).includes('Family dinner'));
 });
 
+test('retrieves a relevant older owner turn beyond ordinary follow-up context', () => {
+  const started = new Date('2026-11-01T08:00:00.000Z');
+  rememberDialogue('Which room is the MTH1304 exam in?', 'The MTH1304 exam is in Hall C.', started);
+  for (let i = 0; i < 7; i++) {
+    rememberDialogue(`Unrelated question ${i}`, `Unrelated answer ${i}.`, new Date(started.getTime() + (i + 1) * 60_000));
+  }
+  const context = JSON.parse(separateContext('What did we decide about the MTH1304 room?',
+    new Date(started.getTime() + 10 * 60_000)));
+  assert.ok(context.relevantOwnerConversation.some((turn) => turn.answer.includes('Hall C')));
+  assert.ok(!context.recentOwnerConversation.some((turn) => turn.answer.includes('Hall C')));
+});
+
 test('deadline context includes source and course while remaining bounded', () => {
   for (let i = 0; i < 80; i++) createTask({ type: 'quiz', subject: `CS${i}`, title: `Quiz ${i}`,
     dueAt: '2027-02-01T09:00:00.000Z' });

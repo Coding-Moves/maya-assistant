@@ -9,7 +9,7 @@ import { lastCalendarReadAt, upcomingCalendarEvents } from './calendar-read.js';
 import { formatInTimezone, localDateInTimezone } from '../utils/time.js';
 import type { QuotedMessageReference } from '../channels/whatsapp/parse.js';
 
-interface Dialogue { question: string; answer: string; answerRef: string | null; createdAt: string }
+interface Dialogue { id: number; question: string; answer: string; answerRef: string | null; createdAt: string }
 type Evidence = Record<string, unknown>;
 const maxContextChars = 14_000;
 const dialogueMs = 48 * 60 * 60_000;
@@ -32,18 +32,35 @@ export function recordOwnerReplyRef(text: string, messageId: string | null | und
   }
 }
 
-function recentDialogue(now: Date, replyToRef: string | null = null): Dialogue[] {
+function recentDialogue(now: Date, replyToRef: string | null = null, limit = 3): Dialogue[] {
   if (!config.OWNER_JID) return [];
   const since = new Date(now.getTime() - dialogueMs).toISOString();
   const direct = replyToRef ? db.prepare<[string, string, string], Dialogue>(
-    `SELECT question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
+    `SELECT id, question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
      WHERE actor_jid = ? AND answer_ref = ? AND created_at >= ? ORDER BY id DESC LIMIT 1`,
   ).get(config.OWNER_JID, replyToRef, since) : undefined;
-  const recent = db.prepare<[string, string], Dialogue>(
-    `SELECT question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
-     WHERE actor_jid = ? AND created_at >= ? ORDER BY id DESC LIMIT 3`,
-  ).all(config.OWNER_JID, since).reverse();
-  return direct ? [direct, ...recent.filter(({ answerRef }) => answerRef !== direct.answerRef)].slice(0, 3) : recent;
+  const recent = db.prepare<[string, string, number], Dialogue>(
+    `SELECT id, question, answer, answer_ref AS answerRef, created_at AS createdAt FROM owner_dialogue
+     WHERE actor_jid = ? AND created_at >= ? ORDER BY id DESC LIMIT ?`,
+  ).all(config.OWNER_JID, since, limit).reverse();
+  return direct ? [direct, ...recent.filter(({ id }) => id !== direct.id)].slice(0, limit) : recent;
+}
+
+function searchDialogue(question: string, now: Date, excludedIds: readonly number[]): Dialogue[] {
+  if (!config.OWNER_JID) return [];
+  const ignored = new Set(['what', 'when', 'where', 'which', 'the', 'this', 'that', 'from', 'about', 'have', 'does', 'there', 'with', 'your', 'you', 'and', 'previous', 'last', 'one', 'option']);
+  const words = (question.normalize('NFKC').toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
+    .filter((word) => word.length >= 2 && !ignored.has(word)).slice(0, 8);
+  if (words.length === 0) return [];
+  const since = new Date(now.getTime() - dialogueMs).toISOString();
+  const expression = words.map((word) => `"${word}"`).join(' OR ');
+  const rows = db.prepare<[string, string, string, number], Dialogue>(
+    `SELECT d.id, d.question, d.answer, d.answer_ref AS answerRef, d.created_at AS createdAt
+     FROM owner_dialogue_fts JOIN owner_dialogue d ON d.id = owner_dialogue_fts.rowid
+     WHERE owner_dialogue_fts MATCH ? AND d.actor_jid = ? AND d.created_at >= ?
+     ORDER BY bm25(owner_dialogue_fts), d.created_at DESC LIMIT ?`,
+  ).all(expression, config.OWNER_JID, since, 4);
+  return rows.filter(({ id }) => !excludedIds.includes(id)).slice(0, 2);
 }
 
 export function rememberDialogue(question: string, answer: string, now = new Date()): void {
@@ -89,8 +106,9 @@ export function separateContext(
   replyToRef: string | null = null,
   quotedMessage: QuotedMessageReference | null = null,
 ): string {
-  const dialogue = recentDialogue(now, replyToRef);
-  const referential = /\b(?:it|that|there|this|those|same|one)\b|یہ|وہ/iu.test(question);
+  const referential = /\b(?:it|that|there|this|those|same|one|previous|last|first|second|third)\b|یہ|وہ/iu.test(question);
+  const dialogue = recentDialogue(now, replyToRef, referential ? 6 : 3);
+  const relevantDialogue = searchDialogue(question, now, dialogue.map(({ id }) => id));
   const searchQuestion = referential && dialogue.length
     ? `${dialogue.at(-1)!.question} ${question}` : question;
   const groups = joinedGroups();
@@ -190,6 +208,9 @@ export function separateContext(
       lastFailureAt: vu?.last_failure_at ?? null } : { enabled: false },
     calendarCacheReadAt: config.CALENDAR_SYNC ? lastCalendarReadAt() : null,
     recentOwnerConversation: dialogue.map(({ question: q, answer, createdAt }) => ({
+      question: q.slice(0, 300), answer: answer.slice(0, 300), at: createdAt,
+    })),
+    relevantOwnerConversation: relevantDialogue.map(({ question: q, answer, createdAt }) => ({
       question: q.slice(0, 300), answer: answer.slice(0, 300), at: createdAt,
     })),
     evidence: items,
